@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | TablatoDrum{% endblock %}
+
+{% block content %}
+<section id="dashboard" class="workspace" style="padding-top: 4rem; min-height: 70vh;">
+    <h2 class="section-title">📊 User Dashboard</h2>
+    
+    <div style="display: flex; gap: 2rem; max-width: 1000px; margin: 0 auto;">
+        
+        <!-- Sidebar / Profile Placeholder -->
+        <div class="glass-card" style="flex: 1;">
+            <div class="card-header">
+                <h3>My Profile</h3>
+            </div>
+            <div style="text-align: center; padding: 2rem 0;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
+                <h4>Guest User</h4>
+                <p style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Sign in to sync your transcriptions</p>
+                <button class="btn-primary" style="margin-top: 1rem;" disabled>Login</button>
+            </div>
+        </div>
+
+        <!-- Main Content Placeholder -->
+        <div class="glass-card" style="flex: 2;">
+            <div class="card-header">
+                <h3>Recent Transcriptions</h3>
+            </div>
+            <div style="padding: 2rem; text-align: center; color: rgba(255,255,255,0.5);">
+                <div style="font-size: 2rem; margin-bottom: 1rem;">📭</div>
+                <p>No transcriptions found in the cloud.</p>
+                <br>
+                <a href="/studio" class="btn-outline">Go to Studio</a>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

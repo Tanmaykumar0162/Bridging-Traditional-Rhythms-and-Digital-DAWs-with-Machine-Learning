@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Studio | TablatoDrum{% endblock %}
+
+{% block content %}
+<section id="workspace" class="workspace" style="padding-top: 4rem;">
+    <h2 class="section-title">Tabla to Drum Studio</h2>
+
+    <div class="glass-card" id="input-card">
+        <div class="card-header">
+            <div class="step-badge">1</div>
+            <h3>Upload Tabla Audio</h3>
+            <div id="uploadStatus" class="status-chip hidden">Ready</div>
+        </div>
+        <div class="input-zone" id="dropZone">
+            <div class="drop-icon">Audio</div>
+            <p class="drop-text">Drag and drop any tabla dhun here</p>
+            <p class="drop-sub">or click to browse - supports .wav, .mp3, .m4a, .webm</p>
+            <input type="file" id="audioUpload" accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg,.mp3,.wav,.m4a,.webm,.ogg" class="file-input" aria-label="Upload a tabla audio recording">
+        </div>
+        <audio id="inputAudioPlayer" controls class="audio-player hidden"></audio>
+
+        <div class="style-transfer-box">
+            <h4>Drum Arrangement Controls</h4>
+            <div class="style-transfer-controls">
+                <div>
+                    <label for="targetMeter">Target Meter</label>
+                    <select id="targetMeter" aria-label="Target meter">
+                        <option value="auto">Auto from groove (Recommended)</option>
+                        <option value="4/4">4/4 production grid</option>
+                        <option value="3/4">3/4 waltz grid</option>
+                        <option value="5/4">5/4 odd meter</option>
+                        <option value="7/8">7/8 odd meter</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="strictnessSlider">Human Feel</label>
+                    <input type="range" id="strictnessSlider" aria-label="Human feel" min="0" max="1" step="0.05" value="0.75">
+                    <span id="strictnessVal">0.75</span>
+                </div>
+            </div>
+            <p class="style-transfer-note">The source tabla remains the rhythmic reference, but the output is now arranged as a usable drum groove with backbeats, hats, accents, and fills.</p>
+        </div>
+
+        <div class="action-row">
+            <button id="processBtn" class="btn-primary" disabled>
+                <span class="btn-icon">Generate</span> Drum Dhun
+            </button>
+            <button id="recordBtn" class="btn-outline">
+                <span class="btn-icon">Record</span> Live
+            </button>
+            <div id="recordingIndicator" class="recording-indicator hidden">
+                <span class="rec-dot"></span> Recording <span id="recTimer">00:00</span>
+                <button id="stopRecordBtn" class="btn-stop">Stop</button>
+            </div>
+        </div>
+
+        <div id="progressSection" class="progress-section hidden">
+            <div class="progress-label">
+                <span>AI groove generation</span>
+                <span id="progressPct" class="pct-text">0%</span>
+            </div>
+            <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
+        </div>
+    </div>
+
+    <div class="glass-card meta-bar hidden" id="meta-bar">
+        <div class="meta-item">
+            <span class="meta-label">Tempo</span>
+            <span class="meta-value" id="metaBPM">-</span>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-item">
+            <span class="meta-label">Laya</span>
+            <span class="meta-value" id="metaLaya">-</span>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-item">
+            <span class="meta-label">Strokes</span>
+            <span class="meta-value" id="metaStrokes">-</span>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-item">
+            <span class="meta-label">Duration</span>
+            <span class="meta-value" id="metaDuration">-</span>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-item">
+            <span class="meta-label">Detected Taal</span>
+            <span class="meta-value taal-badge" id="metaTaal">-</span>
+        </div>
+    </div>
+
+    <div class="glass-card hidden" id="indian-card">
+        <div class="card-header">
+            <div class="step-badge">2</div>
+            <h3>Tabla Phrase Analysis</h3>
+        </div>
+        <div id="taalInfo" class="taal-info hidden"></div>
+        <div class="bol-scroll" id="bolScroll">
+            <div class="bol-grid" id="bolGrid"></div>
+        </div>
+        <div class="legend-row">
+            <span class="legend-item"><span class="conf-dot high"></span> at least 90% confidence</span>
+            <span class="legend-item"><span class="conf-dot med"></span> 70-89%</span>
+            <span class="legend-item"><span class="conf-dot low"></span> below 70%</span>
+        </div>
+    </div>
+
+    <div class="glass-card hidden" id="notation-card">
+        <div class="card-header">
+            <div class="step-badge">3</div>
+            <h3>AI Drum Arrangement</h3>
+            <button id="downloadBtn" class="btn-sm">Download PNG</button>
+        </div>
+        <div id="scroll-container" class="notation-scroll">
+            <div id="capture-area" class="capture-area">
+                <div class="staff-lines"></div>
+                <div class="staff-start-bar"></div>
+                <div class="staff-start-bar-2"></div>
+                <div class="notes-container" id="notes-canvas"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-card hidden" id="midi-section">
+        <div class="card-header">
+            <div class="step-badge">4</div>
+            <h3>Production MIDI Preview</h3>
+            <a id="midiDownloadBtn" href="/download-midi" class="btn-sm">Download MIDI</a>
+        </div>
+        <div class="player-wrapper">
+            <midi-visualizer type="piano-roll" id="myVisualizer"></midi-visualizer>
+            <midi-player id="drumPlayer" sound-font visualizer="#myVisualizer"></midi-player>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/frontend/studio.js"></script>
+{% endblock %}

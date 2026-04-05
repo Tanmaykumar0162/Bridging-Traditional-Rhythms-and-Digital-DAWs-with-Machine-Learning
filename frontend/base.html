@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TablatoDrum — Bridging Traditional Rhythms & Digital DAWs{% endblock %}</title>
+    <meta name="description" content="AI-powered tool that translates Indian Tabla rhythms into Western drum notation using Machine Learning">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    {% block head_scripts %}
+    <script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.23.1/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.5.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    {% endblock %}
+    <link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <span class="nav-icon">🥁</span>
+            <a href="/" class="nav-title" style="text-decoration: none; color: inherit;">TablatoDrum</a>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Home</a>
+            <a href="/studio" class="nav-link {% if request.url.path == '/studio' %}active{% endif %}">Studio</a>
+            <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+        </div>
+    </nav>
+
+    <!-- Main Content Injection -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>TablatoDrum &copy; 2026 — Bridging Traditional Rhythms & Digital DAWs with Machine Learning</p>
+    </footer>
+
+    <!-- Global Scripts -->
+    <script src="/frontend/main.js"></script>
+    <!-- Page Specific Scripts -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>
