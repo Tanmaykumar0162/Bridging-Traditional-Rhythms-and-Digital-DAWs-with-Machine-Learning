@@ -8,9 +8,8 @@ DB_PATH = "tablatodrum.db"
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -18,6 +17,7 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -52,12 +52,22 @@ def init_db():
     """)
 
     cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_projects_user_created_at
+        ON projects (user_id, created_at DESC)
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id
+        ON sessions (user_id)
     """)
 
     conn.commit()

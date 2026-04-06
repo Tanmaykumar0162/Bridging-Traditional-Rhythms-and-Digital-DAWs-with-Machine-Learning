@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from uuid import uuid4
 
 import librosa
 import mido
@@ -35,8 +36,12 @@ app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 templates = Jinja2Templates(directory="frontend")
 
 MODEL_PATH = "./models/tabla_cnn_precision.h5"
+TARGET_SAMPLES = 72000
+FEATURE_FRAMES = 13
+MODEL_BATCH_SIZE = 128
+CONVERTIBLE_AUDIO_EXTENSIONS = (".mp3", ".mpeg", ".m4a", ".webm", ".ogg")
 print("[*] Loading CNN Model for Web App...")
-model = tf.keras.models.load_model(MODEL_PATH)
+model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
 CLASSES = ["Dha", "Dhin", "Ghe", "Na", "Ta", "Tun", "Tin", "Ti", "Re", "Ki", "T", "Kat"]
 
@@ -118,6 +123,17 @@ TAAL_DEFINITIONS = {
     },
 }
 
+MODEL_LAYER_INFO = [
+    {
+        "name": layer.name,
+        "type": layer.__class__.__name__,
+        "output_shape": str(layer.output_shape) if hasattr(layer, "output_shape") else "N/A",
+        "params": layer.count_params(),
+    }
+    for layer in model.layers
+]
+MODEL_TOTAL_PARAMS = model.count_params()
+
 
 def detect_bpm_from_onsets(onsets, sr):
     if len(onsets) < 2:
@@ -194,6 +210,56 @@ def detect_taal(bol_sequence):
             "description": "Could not identify a standard taal - likely free-form phrasing",
         },
     }
+
+
+def _safe_remove(path):
+    if path and os.path.exists(path):
+        os.remove(path)
+
+
+def _build_stroke_feature_batch(y, sr, onsets):
+    stroke_count = len(onsets)
+    tensors = np.empty((stroke_count, FEATURE_FRAMES, FEATURE_FRAMES, 2), dtype=np.float32)
+    accent_scores = []
+
+    for index, onset in enumerate(onsets):
+        stroke = y[onset : onset + TARGET_SAMPLES]
+        if len(stroke) < TARGET_SAMPLES:
+            stroke = np.pad(stroke, (0, TARGET_SAMPLES - len(stroke)), "constant")
+        else:
+            stroke = stroke[:TARGET_SAMPLES]
+
+        accent_window = stroke[: min(len(stroke), int(sr * 0.35))]
+        if len(accent_window) == 0:
+            accent_scores.append(0.0)
+        else:
+            stroke_peak = float(np.max(np.abs(accent_window)))
+            stroke_rms = float(np.sqrt(np.mean(np.square(accent_window))))
+            accent_scores.append((0.65 * stroke_peak) + (0.35 * stroke_rms))
+
+        mfcc = librosa.feature.mfcc(y=stroke, sr=sr, n_mfcc=FEATURE_FRAMES)[:, :FEATURE_FRAMES]
+        chroma = librosa.feature.chroma_stft(y=stroke, sr=sr, n_chroma=FEATURE_FRAMES)[:, :FEATURE_FRAMES]
+
+        if mfcc.shape[1] < FEATURE_FRAMES:
+            pad_width = FEATURE_FRAMES - mfcc.shape[1]
+            mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)))
+            chroma = np.pad(chroma, ((0, 0), (0, pad_width)))
+
+        tensors[index] = np.stack((mfcc, chroma), axis=-1)
+
+    return tensors, accent_scores
+
+
+def _predict_bol_sequence(stroke_tensors):
+    if len(stroke_tensors) == 0:
+        return [], []
+
+    batch_size = min(MODEL_BATCH_SIZE, len(stroke_tensors))
+    prediction_matrix = model.predict(stroke_tensors, batch_size=batch_size, verbose=0)
+    class_indices = np.argmax(prediction_matrix, axis=1)
+    confidences = np.max(prediction_matrix, axis=1)
+    predicted_sequence = [CLASSES[int(class_idx)] for class_idx in class_indices]
+    return predicted_sequence, confidences.astype(float).tolist()
 
 
 def generate_enhanced_midi(drum_arrangement, bpm, output_path):
@@ -377,25 +443,14 @@ async def logout(request: Request):
 
 @app.get("/api/model-info")
 async def model_info():
-    layers = []
-    for layer in model.layers:
-        layers.append(
-            {
-                "name": layer.name,
-                "type": layer.__class__.__name__,
-                "output_shape": str(layer.output_shape) if hasattr(layer, "output_shape") else "N/A",
-                "params": layer.count_params(),
-            }
-        )
-
     return JSONResponse(
         {
             "model_name": "Tabla CNN Classifier",
-            "total_params": model.count_params(),
+            "total_params": MODEL_TOTAL_PARAMS,
             "classes": CLASSES,
             "input_shape": "(13, 13, 2)",
             "feature_desc": "Dual-channel: 13 MFCCs + 13 Chroma features (first 13 frames)",
-            "layers": layers,
+            "layers": MODEL_LAYER_INFO,
             "taal_definitions": TAAL_DEFINITIONS,
         }
     )
@@ -408,159 +463,132 @@ async def stream_transcript(
     strictness: float = Form(0.72),
 ):
     safe_name = os.path.basename(file.filename or "tabla_input.wav")
-    temp_audio_path = f"static/temp_{safe_name}"
+    file_ext = os.path.splitext(safe_name)[1].lower() or ".wav"
+    temp_audio_path = os.path.join("static", f"temp_{uuid4().hex}{file_ext}")
     with open(temp_audio_path, "wb") as buffer:
         buffer.write(await file.read())
 
-    if temp_audio_path.lower().endswith((".mp3", ".mpeg", ".m4a", ".webm", ".ogg")):
+    if temp_audio_path.lower().endswith(CONVERTIBLE_AUDIO_EXTENSIONS):
         print(f"[*] Converting {safe_name} to WAV format...")
         audio = AudioSegment.from_file(temp_audio_path)
         converted_path = temp_audio_path.rsplit(".", 1)[0] + ".wav"
         audio.export(converted_path, format="wav")
-        os.remove(temp_audio_path)
+        _safe_remove(temp_audio_path)
         temp_audio_path = converted_path
         print("[+] Conversion complete!")
 
     async def process_and_stream():
-        y, sr = librosa.load(temp_audio_path, sr=44100)
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-        onsets = librosa.onset.onset_detect(
-            onset_envelope=onset_env,
-            sr=sr,
-            units="samples",
-            backtrack=True,
-            pre_max=5,
-            post_max=5,
-            delta=0.1,
-            wait=15,
-        )
+        try:
+            y, sr = librosa.load(temp_audio_path, sr=44100)
+            onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+            onsets = librosa.onset.onset_detect(
+                onset_envelope=onset_env,
+                sr=sr,
+                units="samples",
+                backtrack=True,
+                pre_max=5,
+                post_max=5,
+                delta=0.1,
+                wait=15,
+            )
 
-        target_samples = 72000
-        predicted_sequence = []
-        confidence_scores = []
-        raw_accent_scores = []
-        onset_times_sec = onsets / sr
+            onset_times_sec = onsets / sr
+            bpm, laya = detect_bpm_from_onsets(onsets, sr)
+            total_strokes = len(onsets)
 
-        bpm, laya = detect_bpm_from_onsets(onsets, sr)
-        total_strokes = len(onsets)
+            yield (
+                "data: META|"
+                f"{json.dumps({'bpm': bpm, 'laya': laya, 'total_strokes': total_strokes, 'duration': round(len(y) / sr, 2)})}\n\n"
+            )
 
-        yield (
-            "data: META|"
-            f"{json.dumps({'bpm': bpm, 'laya': laya, 'total_strokes': total_strokes, 'duration': round(len(y) / sr, 2)})}\n\n"
-        )
+            stroke_tensors, raw_accent_scores = _build_stroke_feature_batch(y, sr, onsets)
+            predicted_sequence, confidence_scores = _predict_bol_sequence(stroke_tensors)
 
-        for index, onset in enumerate(onsets):
-            stroke = y[onset : onset + target_samples]
-            if len(stroke) < target_samples:
-                stroke = np.pad(stroke, (0, target_samples - len(stroke)), "constant")
-            else:
-                stroke = stroke[:target_samples]
+            for index, bol in enumerate(predicted_sequence):
+                confidence = confidence_scores[index]
+                drum_name = DRUM_TEXT_MAP.get(bol, "[Groove]")
+                yield f"data: {bol}|{drum_name}|{confidence:.3f}\n\n"
 
-            accent_window = stroke[: min(len(stroke), int(sr * 0.35))]
-            if len(accent_window) == 0:
-                raw_accent_scores.append(0.0)
-            else:
-                stroke_peak = float(np.max(np.abs(accent_window)))
-                stroke_rms = float(np.sqrt(np.mean(np.square(accent_window))))
-                raw_accent_scores.append((0.65 * stroke_peak) + (0.35 * stroke_rms))
+                progress_pct = int(((index + 1) / max(total_strokes, 1)) * 100)
+                yield f"data: PROGRESS|{progress_pct}\n\n"
+                await asyncio.sleep(0)
 
-            mfcc = librosa.feature.mfcc(y=stroke, sr=sr, n_mfcc=13)[:, :13]
-            chroma = librosa.feature.chroma_stft(y=stroke, sr=sr, n_chroma=13)[:, :13]
+            taal_result = detect_taal(predicted_sequence)
+            yield f"data: TAAL|{json.dumps(taal_result)}\n\n"
 
-            if mfcc.shape[1] < 13:
-                pad_width = 13 - mfcc.shape[1]
-                mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)))
-                chroma = np.pad(chroma, ((0, 0), (0, pad_width)))
+            groove_source_taal = None
+            if taal_result and taal_result.get("name") not in {"Unknown / Free Rhythm", None}:
+                groove_source_taal = taal_result["name"]
 
-            tensor = np.stack((mfcc, chroma), axis=-1)
-            prediction = model.predict(np.expand_dims(tensor, axis=0), verbose=0)
-            class_idx = int(np.argmax(prediction))
-            confidence = float(np.max(prediction))
-            bol = CLASSES[class_idx]
+            onset_time_list = onset_times_sec.tolist()
+            drum_arrangement = translator.build_drum_arrangement(
+                bols=predicted_sequence,
+                onset_times_sec=onset_time_list,
+                bpm=bpm,
+                confidences=confidence_scores,
+                accent_profile=raw_accent_scores,
+                source_taal=groove_source_taal,
+                target_meter=target_meter,
+                strictness=strictness,
+            )
 
-            predicted_sequence.append(bol)
-            confidence_scores.append(confidence)
+            groove_payload = {
+                "meter": drum_arrangement["meter"],
+                "bars": drum_arrangement["bars"],
+                "hat_mode": drum_arrangement["hat_mode"],
+                "summary": drum_arrangement["summary"],
+            }
+            yield f"data: GROOVE|{json.dumps(groove_payload)}\n\n"
 
-            drum_name = DRUM_TEXT_MAP.get(bol, "[Groove]")
-            yield f"data: {bol}|{drum_name}|{confidence:.3f}\n\n"
+            output_midi_path = "static/AI_Drum_Output.mid"
+            generate_enhanced_midi(drum_arrangement, bpm, output_midi_path)
 
-            progress_pct = int(((index + 1) / max(total_strokes, 1)) * 100)
-            yield f"data: PROGRESS|{progress_pct}\n\n"
+            groove_template_path = "static/Tabla_Groove_Template.mid"
+            generate_groove_template_midi(onset_time_list, bpm, groove_template_path)
 
-            await asyncio.sleep(0)
+            seconds_per_beat = 60.0 / max(float(bpm), 1.0)
+            groove_profile_points = []
+            for idx, onset_sec in enumerate(onset_time_list):
+                nearest_beat = round(onset_sec / seconds_per_beat)
+                grid_time = nearest_beat * seconds_per_beat
+                deviation_ms = round((onset_sec - grid_time) * 1000, 2)
+                groove_profile_points.append(
+                    {
+                        "index": idx,
+                        "onset_sec": round(onset_sec, 4),
+                        "grid_sec": round(grid_time, 4),
+                        "deviation_ms": deviation_ms,
+                        "bol": predicted_sequence[idx] if idx < len(predicted_sequence) else "?",
+                    }
+                )
 
-        taal_result = detect_taal(predicted_sequence)
-        yield f"data: TAAL|{json.dumps(taal_result)}\n\n"
+            abs_devs = [abs(point["deviation_ms"]) for point in groove_profile_points]
+            avg_deviation = round(sum(abs_devs) / max(len(abs_devs), 1), 2)
+            max_deviation = round(max(abs_devs) if abs_devs else 0, 2)
+            humanize_score = round(min(100, (avg_deviation / 40) * 100), 1)
 
-        groove_source_taal = None
-        if taal_result and taal_result.get("name") not in {"Unknown / Free Rhythm", None}:
-            groove_source_taal = taal_result["name"]
+            groove_profile_payload = {
+                "points": groove_profile_points,
+                "stats": {
+                    "avg_deviation_ms": avg_deviation,
+                    "max_deviation_ms": max_deviation,
+                    "humanize_score": humanize_score,
+                    "total_onsets": len(groove_profile_points),
+                },
+            }
+            yield f"data: GROOVE_PROFILE|{json.dumps(groove_profile_payload)}\n\n"
 
-        drum_arrangement = translator.build_drum_arrangement(
-            bols=predicted_sequence,
-            onset_times_sec=onset_times_sec.tolist(),
-            bpm=bpm,
-            confidences=confidence_scores,
-            accent_profile=raw_accent_scores,
-            source_taal=groove_source_taal,
-            target_meter=target_meter,
-            strictness=strictness,
-        )
-
-        groove_payload = {
-            "meter": drum_arrangement["meter"],
-            "bars": drum_arrangement["bars"],
-            "hat_mode": drum_arrangement["hat_mode"],
-            "summary": drum_arrangement["summary"],
-        }
-        yield f"data: GROOVE|{json.dumps(groove_payload)}\n\n"
-
-        output_midi_path = "static/AI_Drum_Output.mid"
-        generate_enhanced_midi(drum_arrangement, bpm, output_midi_path)
-
-        groove_template_path = "static/Tabla_Groove_Template.mid"
-        generate_groove_template_midi(onset_times_sec.tolist(), bpm, groove_template_path)
-
-        # Compute per-beat groove profile for the Quantize vs Humanize visualizer
-        seconds_per_beat = 60.0 / max(float(bpm), 1.0)
-        groove_profile_points = []
-        for idx, onset_sec in enumerate(onset_times_sec.tolist()):
-            nearest_beat = round(onset_sec / seconds_per_beat)
-            grid_time = nearest_beat * seconds_per_beat
-            deviation_ms = round((onset_sec - grid_time) * 1000, 2)
-            groove_profile_points.append({
-                "index": idx,
-                "onset_sec": round(onset_sec, 4),
-                "grid_sec": round(grid_time, 4),
-                "deviation_ms": deviation_ms,
-                "bol": predicted_sequence[idx] if idx < len(predicted_sequence) else "?",
-            })
-
-        abs_devs = [abs(p["deviation_ms"]) for p in groove_profile_points]
-        avg_deviation = round(sum(abs_devs) / max(len(abs_devs), 1), 2)
-        max_deviation = round(max(abs_devs) if abs_devs else 0, 2)
-        humanize_score = round(min(100, (avg_deviation / 40) * 100), 1)
-
-        groove_profile_payload = {
-            "points": groove_profile_points,
-            "stats": {
-                "avg_deviation_ms": avg_deviation,
-                "max_deviation_ms": max_deviation,
-                "humanize_score": humanize_score,
-                "total_onsets": len(groove_profile_points),
-            },
-        }
-        yield f"data: GROOVE_PROFILE|{json.dumps(groove_profile_payload)}\n\n"
-
-        yield (
-            "data: SEQUENCE|"
-            f"{json.dumps({'bols': predicted_sequence, 'confidences': [round(score, 3) for score in confidence_scores]})}\n\n"
-        )
-        yield (
-            "data: DRUM_SEQUENCE|"
-            f"{json.dumps({'meter': drum_arrangement['meter'], 'bars': drum_arrangement['bars'], 'hat_mode': drum_arrangement['hat_mode'], 'summary': drum_arrangement['summary'], 'steps': drum_arrangement['display_steps']})}\n\n"
-        )
-        yield "data: DONE\n\n"
+            yield (
+                "data: SEQUENCE|"
+                f"{json.dumps({'bols': predicted_sequence, 'confidences': [round(score, 3) for score in confidence_scores]})}\n\n"
+            )
+            yield (
+                "data: DRUM_SEQUENCE|"
+                f"{json.dumps({'meter': drum_arrangement['meter'], 'bars': drum_arrangement['bars'], 'hat_mode': drum_arrangement['hat_mode'], 'summary': drum_arrangement['summary'], 'steps': drum_arrangement['display_steps']})}\n\n"
+            )
+            yield "data: DONE\n\n"
+        finally:
+            _safe_remove(temp_audio_path)
 
     return StreamingResponse(process_and_stream(), media_type="text/event-stream")
 

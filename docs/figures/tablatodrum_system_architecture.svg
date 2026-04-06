@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" role="img" aria-labelledby="title desc">
+  <title id="title">TablatoDrum System Architecture</title>
+  <desc id="desc">Original architecture diagram for the TablatoDrum pipeline, showing audio input, feature extraction, machine learning classification, rhythm translation, and DAW export.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7efe5"/>
+      <stop offset="100%" stop-color="#f0f5fb"/>
+    </linearGradient>
+    <linearGradient id="titleFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b4513"/>
+      <stop offset="100%" stop-color="#275dad"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#355070"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Segoe UI', Arial, sans-serif; fill: #1f2937; }
+      .subtitle { font: 500 17px 'Segoe UI', Arial, sans-serif; fill: #4b5563; }
+      .box-title { font: 700 22px 'Segoe UI', Arial, sans-serif; fill: #132238; }
+      .box-text { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #223247; }
+      .small-text { font: 500 14px 'Segoe UI', Arial, sans-serif; fill: #45566b; }
+      .stroke { stroke: #355070; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .panel { fill: #ffffff; stroke: #d8e0ea; stroke-width: 2; rx: 22; ry: 22; }
+      .chip { fill: #eef4ff; stroke: #bfd2ff; stroke-width: 1.5; rx: 14; ry: 14; }
+      .warm { fill: #fff0df; stroke: #efc693; stroke-width: 2; rx: 22; ry: 22; }
+      .cool { fill: #eaf4ff; stroke: #9ac2f0; stroke-width: 2; rx: 22; ry: 22; }
+      .green { fill: #ebf8ef; stroke: #9dd4ad; stroke-width: 2; rx: 22; ry: 22; }
+      .violet { fill: #f4efff; stroke: #c9b7f8; stroke-width: 2; rx: 22; ry: 22; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="920" fill="url(#bg)"/>
+
+  <text x="800" y="62" text-anchor="middle" class="title">TablatoDrum: Bridging Traditional Rhythms and Digital DAWs</text>
+  <text x="800" y="96" text-anchor="middle" class="subtitle">Original figure derived from the current codebase: audio analysis, bol classification, tala inference, groove translation, and MIDI export</text>
+
+  <rect x="60" y="150" width="220" height="170" class="warm"/>
+  <text x="170" y="188" text-anchor="middle" class="box-title">1. Audio Input</text>
+  <text x="84" y="228" class="box-text">- Upload or live record tabla audio</text>
+  <text x="84" y="256" class="box-text">- Supports WAV, MP3, M4A, WEBM</text>
+  <text x="84" y="284" class="box-text">- FastAPI + browser studio workflow</text>
+
+  <rect x="340" y="120" width="260" height="230" class="panel"/>
+  <text x="470" y="158" text-anchor="middle" class="box-title">2. Preprocessing</text>
+  <text x="365" y="198" class="box-text">- Resample / decode audio with pydub</text>
+  <text x="365" y="226" class="box-text">- Onset strength + onset detection</text>
+  <text x="365" y="254" class="box-text">- Accent window, RMS, peak tracking</text>
+  <text x="365" y="282" class="box-text">- BPM from median inter-onset interval</text>
+  <text x="365" y="320" class="small-text">librosa at 44.1 kHz</text>
+
+  <rect x="660" y="110" width="300" height="250" class="cool"/>
+  <text x="810" y="148" text-anchor="middle" class="box-title">3. Stroke Representation</text>
+  <text x="688" y="190" class="box-text">- Segment each onset into fixed-length stroke audio</text>
+  <text x="688" y="220" class="box-text">- Extract 13 MFCCs + 13 Chroma features</text>
+  <text x="688" y="250" class="box-text">- Keep first 13 frames of the attack</text>
+  <text x="688" y="280" class="box-text">- Build a (13 x 13 x 2) dual-channel tensor</text>
+  <rect x="733" y="304" width="154" height="38" class="chip"/>
+  <text x="810" y="329" text-anchor="middle" class="small-text">Model input tensor</text>
+
+  <rect x="1020" y="100" width="300" height="270" class="green"/>
+  <text x="1170" y="138" text-anchor="middle" class="box-title">4. CNN Bol Classifier</text>
+  <text x="1048" y="180" class="box-text">- Sequential CNN</text>
+  <text x="1048" y="210" class="box-text">- Conv(32) -&gt; Pool -&gt; Conv(64) -&gt; Pool</text>
+  <text x="1048" y="240" class="box-text">- Dense(128) + Dropout(0.3)</text>
+  <text x="1048" y="270" class="box-text">- Softmax over 12 tabla bol classes</text>
+  <text x="1048" y="300" class="box-text">- 94,508 trainable parameters</text>
+  <rect x="1082" y="317" width="176" height="38" class="chip"/>
+  <text x="1170" y="342" text-anchor="middle" class="small-text">Dha, Dhin, Ghe, Na, Ta, ...</text>
+
+  <rect x="1340" y="150" width="200" height="170" class="violet"/>
+  <text x="1440" y="188" text-anchor="middle" class="box-title">5. Taal Layer</text>
+  <text x="1365" y="228" class="box-text">- Template matching on bol sequence</text>
+  <text x="1365" y="256" class="box-text">- 6 taals in the current prototype</text>
+  <text x="1365" y="284" class="box-text">- Laya: Vilambit / Madhya / Drut</text>
+
+  <rect x="250" y="455" width="360" height="220" class="panel"/>
+  <text x="430" y="495" text-anchor="middle" class="box-title">6. Rhythm Translation Engine</text>
+  <text x="278" y="535" class="box-text">- Map bols to drum roles using weighted rules</text>
+  <text x="278" y="565" class="box-text">- Resolve target meter: 4/4, 3/4, 5/4, 7/8, auto</text>
+  <text x="278" y="595" class="box-text">- Preserve micro-timing with a strictness control</text>
+  <text x="278" y="625" class="box-text">- Generate kicks, snares, hats, toms, crashes</text>
+  <text x="278" y="655" class="small-text">Implemented in rhythm_translator.py</text>
+
+  <rect x="670" y="455" width="300" height="220" class="panel"/>
+  <text x="820" y="495" text-anchor="middle" class="box-title">7. Groove Analytics</text>
+  <text x="698" y="535" class="box-text">- Quantize vs humanize comparison</text>
+  <text x="698" y="565" class="box-text">- Per-onset deviation from ideal beat grid</text>
+  <text x="698" y="595" class="box-text">- Average / max deviation statistics</text>
+  <text x="698" y="625" class="box-text">- Humanize score for producer feedback</text>
+
+  <rect x="1030" y="455" width="350" height="220" class="panel"/>
+  <text x="1205" y="495" text-anchor="middle" class="box-title">8. DAW-Ready Outputs</text>
+  <text x="1058" y="535" class="box-text">- AI Drum Arrangement MIDI</text>
+  <text x="1058" y="565" class="box-text">- Groove Template MIDI for DAW groove pools</text>
+  <text x="1058" y="595" class="box-text">- Drum notation preview and MIDI player</text>
+  <text x="1058" y="625" class="box-text">- Download and session persistence</text>
+  <text x="1058" y="655" class="small-text">Ableton / FL Studio style workflow</text>
+
+  <rect x="520" y="725" width="560" height="120" class="warm"/>
+  <text x="800" y="764" text-anchor="middle" class="box-title">9. Producer-Facing Layer</text>
+  <text x="560" y="800" class="box-text">Studio UI, Server-Sent Events progress streaming, SQLite project library, dashboard, and saved groove profiles</text>
+
+  <path d="M280 235 L340 235" class="stroke"/>
+  <path d="M600 235 L660 235" class="stroke"/>
+  <path d="M960 235 L1020 235" class="stroke"/>
+  <path d="M1320 235 L1340 235" class="stroke"/>
+  <path d="M1440 320 L1440 390 L430 390 L430 455" class="stroke"/>
+  <path d="M610 565 L670 565" class="stroke"/>
+  <path d="M970 565 L1030 565" class="stroke"/>
+  <path d="M1205 675 L1205 710 L800 710 L800 725" class="stroke"/>
+
+  <text x="86" y="888" class="small-text">Figure caption: Proposed TablatoDrum architecture showing how a culturally grounded tabla-analysis pipeline is translated into producer-friendly DAW artifacts.</text>
+</svg>
