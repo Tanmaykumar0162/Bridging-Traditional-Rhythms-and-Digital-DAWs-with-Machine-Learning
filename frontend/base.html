@@ -24,12 +24,19 @@
     <nav class="navbar" id="navbar">
         <div class="nav-brand">
             <span class="nav-icon">🥁</span>
-            <a href="/" class="nav-title" style="text-decoration: none; color: inherit;">TablatoDrum</a>
+            <a href="/" class="nav-title">TablatoDrum</a>
         </div>
         <div class="nav-links">
             <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Home</a>
             <a href="/studio" class="nav-link {% if request.url.path == '/studio' %}active{% endif %}">Studio</a>
             <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+            {% if user %}
+                <span class="nav-user">{{ user.username }}</span>
+                <a href="/logout" class="nav-link nav-auth">Logout</a>
+            {% else %}
+                <a href="/login" class="nav-link nav-auth {% if request.url.path == '/login' %}active{% endif %}">Login</a>
+                <a href="/register" class="nav-link nav-auth {% if request.url.path == '/register' %}active{% endif %}">Register</a>
+            {% endif %}
         </div>
     </nav>
 

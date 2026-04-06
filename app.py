@@ -7,13 +7,24 @@ import mido
 import numpy as np
 import tensorflow as tf
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mido import Message, MidiFile, MidiTrack
 from pydub import AudioSegment
 
 from rhythm_translator import translator
+from database import (
+    register_user,
+    authenticate_user,
+    create_session,
+    get_user_from_session,
+    delete_session,
+    save_project,
+    get_user_projects,
+    rename_project,
+    delete_project,
+)
 
 
 app = FastAPI(title="TablatoDrum - Tabla to Drum Groove Generator")
@@ -242,19 +253,126 @@ def generate_enhanced_midi(drum_arrangement, bpm, output_path):
     mid.save(output_path)
 
 
+def generate_groove_template_midi(onset_times_sec, bpm, output_path):
+    mid = MidiFile(ticks_per_beat=480)
+    tempo_bpm = max(40, int(round(bpm)))
+    tempo = mido.bpm2tempo(tempo_bpm)
+
+    meta_track = MidiTrack()
+    mid.tracks.append(meta_track)
+    meta_track.append(mido.MetaMessage("track_name", name="Tabla Groove Template", time=0))
+    meta_track.append(mido.MetaMessage("set_tempo", tempo=tempo, time=0))
+    meta_track.append(mido.MetaMessage("time_signature", numerator=4, denominator=4, time=0))
+
+    groove_track = MidiTrack()
+    mid.tracks.append(groove_track)
+    groove_track.append(mido.MetaMessage("track_name", name="Human Timing Offsets", time=0))
+
+    if not onset_times_sec:
+        mid.save(output_path)
+        return
+
+    midi_events = []
+    for onset in onset_times_sec:
+        start_tick = int(round(mido.second2tick(float(onset), mid.ticks_per_beat, tempo)))
+        end_tick = start_tick + (mid.ticks_per_beat // 4) # Short 16th note length
+        # Using Side Stick (Rimshot) 37 for clear click mapping in DAWs
+        midi_events.append((start_tick, 0, 37, 100))
+        midi_events.append((end_tick, 1, 37, 0))
+
+    midi_events.sort(key=lambda item: (item[0], item[1], item[2]))
+
+    previous_tick = 0
+    for absolute_tick, event_order, midi_note, velocity in midi_events:
+        delta = max(0, absolute_tick - previous_tick)
+        message_type = "note_on" if event_order == 0 else "note_off"
+        groove_track.append(Message(message_type, note=midi_note, velocity=velocity, time=delta, channel=9))
+        previous_tick = absolute_tick
+
+    mid.save(output_path)
+
+
+def _get_current_user(request: Request):
+    token = request.cookies.get("session_token")
+    return get_user_from_session(token)
+
+
 @app.get("/")
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    user = _get_current_user(request)
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 
 @app.get("/studio")
 async def studio(request: Request):
-    return templates.TemplateResponse("studio.html", {"request": request})
+    user = _get_current_user(request)
+    return templates.TemplateResponse("studio.html", {"request": request, "user": user})
 
 
 @app.get("/dashboard")
 async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    user = _get_current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    projects = get_user_projects(user["id"])
+    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user, "projects": projects})
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    user = _get_current_user(request)
+    if user:
+        return RedirectResponse("/dashboard", status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request, "user": None, "error": None})
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password", "")
+    user_id = authenticate_user(username, password)
+    if user_id:
+        token = create_session(user_id)
+        response = RedirectResponse("/dashboard", status_code=302)
+        response.set_cookie("session_token", token, httponly=True, max_age=86400 * 7)
+        return response
+    return templates.TemplateResponse("login.html", {"request": request, "user": None, "error": "Invalid username or password"})
+
+
+@app.get("/register")
+async def register_page(request: Request):
+    user = _get_current_user(request)
+    if user:
+        return RedirectResponse("/dashboard", status_code=302)
+    return templates.TemplateResponse("register.html", {"request": request, "user": None, "error": None})
+
+
+@app.post("/register")
+async def register_submit(request: Request):
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password", "")
+    if len(username) < 3 or len(password) < 4:
+        return templates.TemplateResponse("register.html", {"request": request, "user": None, "error": "Username must be 3+ chars, password 4+ chars"})
+    success, msg = register_user(username, password)
+    if success:
+        user_id = authenticate_user(username, password)
+        token = create_session(user_id)
+        response = RedirectResponse("/dashboard", status_code=302)
+        response.set_cookie("session_token", token, httponly=True, max_age=86400 * 7)
+        return response
+    return templates.TemplateResponse("register.html", {"request": request, "user": None, "error": msg})
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    token = request.cookies.get("session_token")
+    if token:
+        delete_session(token)
+    response = RedirectResponse("/", status_code=302)
+    response.delete_cookie("session_token")
+    return response
 
 
 @app.get("/api/model-info")
@@ -400,6 +518,40 @@ async def stream_transcript(
         output_midi_path = "static/AI_Drum_Output.mid"
         generate_enhanced_midi(drum_arrangement, bpm, output_midi_path)
 
+        groove_template_path = "static/Tabla_Groove_Template.mid"
+        generate_groove_template_midi(onset_times_sec.tolist(), bpm, groove_template_path)
+
+        # Compute per-beat groove profile for the Quantize vs Humanize visualizer
+        seconds_per_beat = 60.0 / max(float(bpm), 1.0)
+        groove_profile_points = []
+        for idx, onset_sec in enumerate(onset_times_sec.tolist()):
+            nearest_beat = round(onset_sec / seconds_per_beat)
+            grid_time = nearest_beat * seconds_per_beat
+            deviation_ms = round((onset_sec - grid_time) * 1000, 2)
+            groove_profile_points.append({
+                "index": idx,
+                "onset_sec": round(onset_sec, 4),
+                "grid_sec": round(grid_time, 4),
+                "deviation_ms": deviation_ms,
+                "bol": predicted_sequence[idx] if idx < len(predicted_sequence) else "?",
+            })
+
+        abs_devs = [abs(p["deviation_ms"]) for p in groove_profile_points]
+        avg_deviation = round(sum(abs_devs) / max(len(abs_devs), 1), 2)
+        max_deviation = round(max(abs_devs) if abs_devs else 0, 2)
+        humanize_score = round(min(100, (avg_deviation / 40) * 100), 1)
+
+        groove_profile_payload = {
+            "points": groove_profile_points,
+            "stats": {
+                "avg_deviation_ms": avg_deviation,
+                "max_deviation_ms": max_deviation,
+                "humanize_score": humanize_score,
+                "total_onsets": len(groove_profile_points),
+            },
+        }
+        yield f"data: GROOVE_PROFILE|{json.dumps(groove_profile_payload)}\n\n"
+
         yield (
             "data: SEQUENCE|"
             f"{json.dumps({'bols': predicted_sequence, 'confidences': [round(score, 3) for score in confidence_scores]})}\n\n"
@@ -413,12 +565,61 @@ async def stream_transcript(
     return StreamingResponse(process_and_stream(), media_type="text/event-stream")
 
 
+@app.post("/api/save-project")
+async def api_save_project(request: Request):
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+    data = await request.json()
+    project_id = save_project(user["id"], data)
+    return JSONResponse({"status": "saved", "project_id": project_id})
+
+
+@app.put("/api/projects/{project_id}/rename")
+async def api_rename_project(project_id: int, request: Request):
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+    data = await request.json()
+    new_name = data.get("name", "").strip()
+    if not new_name:
+        return JSONResponse({"error": "Name cannot be empty"}, status_code=400)
+    rename_project(project_id, user["id"], new_name)
+    return JSONResponse({"status": "renamed"})
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_delete_project(project_id: int, request: Request):
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+    delete_project(project_id, user["id"])
+    return JSONResponse({"status": "deleted"})
+
+
+@app.get("/api/projects")
+async def api_list_projects(request: Request):
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+    projects = get_user_projects(user["id"])
+    return JSONResponse({"projects": projects})
+
+
 @app.get("/download-midi")
 async def download_midi():
     path = "static/AI_Drum_Output.mid"
     if os.path.exists(path):
         return FileResponse(path, media_type="audio/midi", filename="TablatoDrum_Output.mid")
     return JSONResponse({"error": "No MIDI file generated yet"}, status_code=404)
+
+
+@app.get("/download-groove")
+async def download_groove():
+    path = "static/Tabla_Groove_Template.mid"
+    if os.path.exists(path):
+        return FileResponse(path, media_type="audio/midi", filename="Tabla_Swing_Template.mid")
+    return JSONResponse({"error": "No Groove Template generated yet"}, status_code=404)
 
 
 @app.post("/api/v1/style-transfer")

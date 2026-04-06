@@ -2,37 +2,110 @@
 {% block title %}Dashboard | TablatoDrum{% endblock %}
 
 {% block content %}
-<section id="dashboard" class="workspace" style="padding-top: 4rem; min-height: 70vh;">
-    <h2 class="section-title">📊 User Dashboard</h2>
-    
-    <div style="display: flex; gap: 2rem; max-width: 1000px; margin: 0 auto;">
-        
-        <!-- Sidebar / Profile Placeholder -->
-        <div class="glass-card" style="flex: 1;">
-            <div class="card-header">
-                <h3>My Profile</h3>
-            </div>
-            <div style="text-align: center; padding: 2rem 0;">
-                <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
-                <h4>Guest User</h4>
-                <p style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Sign in to sync your transcriptions</p>
-                <button class="btn-primary" style="margin-top: 1rem;" disabled>Login</button>
-            </div>
-        </div>
+<section id="dashboard" class="workspace dashboard-workspace">
+    <h2 class="section-title">🎛️ Groove Library</h2>
+    <p class="dashboard-subtitle">Your personal collection of extracted Indian grooves</p>
 
-        <!-- Main Content Placeholder -->
-        <div class="glass-card" style="flex: 2;">
-            <div class="card-header">
-                <h3>Recent Transcriptions</h3>
-            </div>
-            <div style="padding: 2rem; text-align: center; color: rgba(255,255,255,0.5);">
-                <div style="font-size: 2rem; margin-bottom: 1rem;">📭</div>
-                <p>No transcriptions found in the cloud.</p>
-                <br>
-                <a href="/studio" class="btn-outline">Go to Studio</a>
-            </div>
+    <div class="dashboard-stats-row">
+        <div class="dash-stat glass-card">
+            <span class="dash-stat-num">{{ projects|length }}</span>
+            <span class="dash-stat-label">Total Grooves</span>
         </div>
-
+        <div class="dash-stat glass-card">
+            <span class="dash-stat-num">{{ user.username }}</span>
+            <span class="dash-stat-label">Logged in as</span>
+        </div>
     </div>
+
+    {% if projects|length == 0 %}
+    <div class="glass-card empty-state">
+        <div class="empty-icon">📭</div>
+        <h3>No grooves yet</h3>
+        <p>Head to the Studio, upload a Tabla dhun, and your groove profiles will appear here automatically.</p>
+        <a href="/studio" class="btn-primary">Open Studio</a>
+    </div>
+    {% else %}
+    <div class="projects-grid" id="projectsGrid">
+        {% for project in projects %}
+        <div class="glass-card project-card" data-project-id="{{ project.id }}">
+            <div class="project-header">
+                <h3 class="project-name" id="pname-{{ project.id }}">{{ project.name }}</h3>
+                <div class="project-actions">
+                    <button class="btn-icon-sm" onclick="renameProject({{ project.id }})" title="Rename">✏️</button>
+                    <button class="btn-icon-sm btn-danger-sm" onclick="deleteProject({{ project.id }})" title="Delete">🗑️</button>
+                </div>
+            </div>
+            <div class="project-meta-grid">
+                <div class="pm-item">
+                    <span class="pm-label">BPM</span>
+                    <span class="pm-value">{{ project.bpm or '-' }}</span>
+                </div>
+                <div class="pm-item">
+                    <span class="pm-label">Laya</span>
+                    <span class="pm-value">{{ project.laya or '-' }}</span>
+                </div>
+                <div class="pm-item">
+                    <span class="pm-label">Taal</span>
+                    <span class="pm-value taal-highlight">{{ project.detected_taal or '-' }}</span>
+                </div>
+                <div class="pm-item">
+                    <span class="pm-label">Meter</span>
+                    <span class="pm-value">{{ project.meter or '-' }}</span>
+                </div>
+                <div class="pm-item">
+                    <span class="pm-label">Strokes</span>
+                    <span class="pm-value">{{ project.total_strokes or '-' }}</span>
+                </div>
+                <div class="pm-item">
+                    <span class="pm-label">Human Feel</span>
+                    <span class="pm-value humanize-value">{{ project.humanize_score or 0 }}%</span>
+                </div>
+            </div>
+            <div class="project-deviation-bar">
+                <div class="dev-label">Avg Deviation: <strong>{{ project.avg_deviation_ms or 0 }}ms</strong></div>
+                <div class="dev-track"><div class="dev-fill" style="width: {{ [project.humanize_score or 0, 100]|min }}%"></div></div>
+            </div>
+            <div class="project-footer">
+                <span class="project-date">{{ project.created_at }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function renameProject(id) {
+    const el = document.getElementById("pname-" + id);
+    const current = el.textContent.trim();
+    const newName = prompt("Rename this groove:", current);
+    if (!newName || newName.trim() === current) return;
+    const res = await fetch("/api/projects/" + id + "/rename", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: newName.trim()})
+    });
+    if (res.ok) {
+        el.textContent = newName.trim();
+    } else {
+        alert("Failed to rename.");
+    }
+}
+
+async function deleteProject(id) {
+    if (!confirm("Delete this groove permanently?")) return;
+    const res = await fetch("/api/projects/" + id, {method: "DELETE"});
+    if (res.ok) {
+        const card = document.querySelector('[data-project-id="' + id + '"]');
+        if (card) card.remove();
+        if (document.querySelectorAll('.project-card').length === 0) {
+            location.reload();
+        }
+    } else {
+        alert("Failed to delete.");
+    }
+}
+</script>
 {% endblock %}

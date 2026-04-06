@@ -26,10 +26,13 @@ const bolGrid = document.getElementById("bolGrid");
 const taalInfo = document.getElementById("taalInfo");
 
 const notationCard = document.getElementById("notation-card");
+const grooveCard = document.getElementById("groove-card");
+const visualizerCard = document.getElementById("visualizer-card");
 const notesCanvas = document.getElementById("notes-canvas");
 const midiSection = document.getElementById("midi-section");
 const drumPlayer = document.getElementById("drumPlayer");
 const downloadBtn = document.getElementById("downloadBtn");
+const saveProjectBtn = document.getElementById("saveProjectBtn");
 
 const SOURCE_ROLE_TEXT = {
     Dha: "Bass accent",
@@ -45,6 +48,9 @@ const SOURCE_ROLE_TEXT = {
     T: "Hat pulse",
     Kat: "Rim accent"
 };
+
+// Store session data for save-to-library
+let sessionData = {};
 
 strictnessSlider.addEventListener("input", () => {
     strictnessVal.textContent = Number(strictnessSlider.value).toFixed(2);
@@ -151,11 +157,14 @@ processBtn.addEventListener("click", async () => {
     metaBar.classList.add("hidden");
     indianCard.classList.add("hidden");
     notationCard.classList.add("hidden");
+    grooveCard.classList.add("hidden");
+    visualizerCard.classList.add("hidden");
     midiSection.classList.add("hidden");
     bolGrid.innerHTML = "";
     notesCanvas.innerHTML = "";
     taalInfo.classList.add("hidden");
     taalInfo.innerHTML = "";
+    sessionData = {};
 
     const formData = new FormData();
     formData.append("file", file);
@@ -196,6 +205,7 @@ processBtn.addEventListener("click", async () => {
                     if (drumArrangementReady) {
                         notationCard.classList.remove("hidden");
                     }
+                    grooveCard.classList.remove("hidden");
                     drumPlayer.src = `/static/AI_Drum_Output.mid?t=${Date.now()}`;
                     midiSection.classList.remove("hidden");
                     progressSection.classList.add("hidden");
@@ -210,18 +220,22 @@ processBtn.addEventListener("click", async () => {
                     metaStrokes.textContent = meta.total_strokes;
                     metaDuration.textContent = `${meta.duration}s`;
                     metaBar.classList.remove("hidden");
+                    sessionData.bpm = meta.bpm;
+                    sessionData.laya = meta.laya;
+                    sessionData.total_strokes = meta.total_strokes;
+                    sessionData.duration_sec = meta.duration;
                     continue;
                 }
 
                 if (payload.startsWith("TAAL|")) {
                     const taal = JSON.parse(payload.slice(5));
                     metaTaal.textContent = taal.name + (taal.confidence ? ` (${taal.confidence}%)` : "");
-
                     const description = taal.details && taal.details.description ? taal.details.description : "";
                     const display = taal.details && taal.details.display ? taal.details.display : "";
                     taalInfo.innerHTML = `<strong>${taal.name}</strong> - ${description}` +
                         (display ? `<br><span class="taal-theka">Theka: ${display}</span>` : "");
                     taalInfo.classList.remove("hidden");
+                    sessionData.detected_taal = taal.name;
                     continue;
                 }
 
@@ -234,6 +248,18 @@ processBtn.addEventListener("click", async () => {
                     } else {
                         taalInfo.innerHTML += `<br><span class="groove-summary">${grooveText}</span>`;
                     }
+                    sessionData.meter = groove.meter;
+                    continue;
+                }
+
+                if (payload.startsWith("GROOVE_PROFILE|")) {
+                    const profile = JSON.parse(payload.slice(15));
+                    sessionData.groove_profile = profile;
+                    sessionData.avg_deviation_ms = profile.stats.avg_deviation_ms;
+                    sessionData.max_deviation_ms = profile.stats.max_deviation_ms;
+                    sessionData.humanize_score = profile.stats.humanize_score;
+                    renderGrooveVisualizer(profile);
+                    visualizerCard.classList.remove("hidden");
                     continue;
                 }
 
@@ -322,6 +348,159 @@ function renderDrumArrangement(steps) {
 
     notesCanvas.innerHTML = html;
 }
+
+function renderGrooveVisualizer(profile) {
+    const stats = profile.stats;
+    document.getElementById("vizAvgDev").textContent = `${stats.avg_deviation_ms}ms`;
+    document.getElementById("vizMaxDev").textContent = `${stats.max_deviation_ms}ms`;
+    document.getElementById("vizHumanize").textContent = `${stats.humanize_score}%`;
+    document.getElementById("vizOnsets").textContent = stats.total_onsets;
+
+    const canvas = document.getElementById("grooveCanvas");
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = 260 * dpr;
+    ctx.scale(dpr, dpr);
+
+    const W = canvas.offsetWidth;
+    const H = 260;
+    const points = profile.points;
+    const padLeft = 50;
+    const padRight = 20;
+    const padTop = 30;
+    const padBottom = 40;
+    const plotW = W - padLeft - padRight;
+    const plotH = H - padTop - padBottom;
+    const centerY = padTop + plotH / 2;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = "#0d0d14";
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid zone
+    ctx.fillStyle = "rgba(108, 61, 255, 0.04)";
+    ctx.fillRect(padLeft, padTop, plotW, plotH);
+
+    // Grid center line (perfect quantized)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padLeft, centerY);
+    ctx.lineTo(W - padRight, centerY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Zone labels
+    ctx.fillStyle = "rgba(0, 212, 170, 0.5)";
+    ctx.font = "11px Inter, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("Early (rushed)", padLeft - 6, padTop + 16);
+    ctx.fillStyle = "rgba(255, 107, 53, 0.5)";
+    ctx.fillText("Late (laid back)", padLeft - 6, H - padBottom - 6);
+
+    // Center label
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.fillText("Grid", padLeft - 6, centerY + 4);
+
+    if (points.length === 0) return;
+
+    const maxDev = Math.max(stats.max_deviation_ms, 10);
+    const scale = (plotH / 2) / maxDev;
+
+    // Bars for each onset
+    const barWidth = Math.max(2, Math.min(12, (plotW / points.length) - 2));
+
+    points.forEach((point, i) => {
+        const x = padLeft + (i / Math.max(points.length - 1, 1)) * plotW;
+        const devPx = point.deviation_ms * scale;
+        const barTop = point.deviation_ms < 0 ? centerY + devPx : centerY;
+        const barHeight = Math.abs(devPx);
+
+        // Green for early (negative = before grid), Orange for late (positive = after grid)
+        if (point.deviation_ms < 0) {
+            ctx.fillStyle = "rgba(0, 212, 170, 0.7)";
+        } else {
+            ctx.fillStyle = "rgba(255, 107, 53, 0.7)";
+        }
+
+        ctx.fillRect(x - barWidth / 2, barTop, barWidth, Math.max(barHeight, 1));
+
+        // Bol label at bottom
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.font = "9px Inter, sans-serif";
+        ctx.textAlign = "center";
+        if (points.length <= 60 || i % 2 === 0) {
+            ctx.save();
+            ctx.translate(x, H - padBottom + 12);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(point.bol, 0, 0);
+            ctx.restore();
+        }
+    });
+
+    // Y-axis ticks
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.font = "10px Inter, monospace";
+    ctx.textAlign = "right";
+    const tickValues = [-maxDev, -maxDev / 2, 0, maxDev / 2, maxDev];
+    tickValues.forEach((val) => {
+        const y = centerY - val * scale;
+        ctx.fillText(`${Math.round(val)}ms`, padLeft - 6, y + 3);
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(W - padRight, y);
+        ctx.stroke();
+    });
+}
+
+// Save to Library button
+saveProjectBtn.addEventListener("click", async () => {
+    const payload = {
+        name: "Untitled Dhun",
+        bpm: sessionData.bpm,
+        laya: sessionData.laya,
+        detected_taal: sessionData.detected_taal,
+        total_strokes: sessionData.total_strokes,
+        duration_sec: sessionData.duration_sec,
+        avg_deviation_ms: sessionData.avg_deviation_ms,
+        max_deviation_ms: sessionData.max_deviation_ms,
+        humanize_score: sessionData.humanize_score,
+        meter: sessionData.meter,
+        midi_path: "static/AI_Drum_Output.mid",
+        groove_path: "static/Tabla_Groove_Template.mid",
+        groove_profile_json: JSON.stringify(sessionData.groove_profile || {}),
+    };
+
+    try {
+        const res = await fetch("/api/save-project", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.status === "saved") {
+            saveProjectBtn.textContent = "✓ Saved!";
+            saveProjectBtn.disabled = true;
+            setTimeout(() => {
+                saveProjectBtn.textContent = "Save to My Library";
+                saveProjectBtn.disabled = false;
+            }, 3000);
+        } else if (data.error === "Not authenticated") {
+            if (confirm("You need to log in first. Go to login page?")) {
+                window.location.href = "/login";
+            }
+        }
+    } catch (err) {
+        alert("Failed to save. Is the server running?");
+    }
+});
 
 downloadBtn.addEventListener("click", () => {
     const captureArea = document.getElementById("capture-area");

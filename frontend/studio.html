@@ -2,7 +2,7 @@
 {% block title %}Studio | TablatoDrum{% endblock %}
 
 {% block content %}
-<section id="workspace" class="workspace" style="padding-top: 4rem;">
+<section id="workspace" class="workspace studio-workspace">
     <h2 class="section-title">Tabla to Drum Studio</h2>
 
     <div class="glass-card" id="input-card">
@@ -20,7 +20,7 @@
         <audio id="inputAudioPlayer" controls class="audio-player hidden"></audio>
 
         <div class="style-transfer-box">
-            <h4>Drum Arrangement Controls</h4>
+            <h4>Groove Extraction Controls</h4>
             <div class="style-transfer-controls">
                 <div>
                     <label for="targetMeter">Target Meter</label>
@@ -33,17 +33,17 @@
                     </select>
                 </div>
                 <div>
-                    <label for="strictnessSlider">Human Feel</label>
+                    <label for="strictnessSlider">Human Feel Preservation</label>
                     <input type="range" id="strictnessSlider" aria-label="Human feel" min="0" max="1" step="0.05" value="0.75">
                     <span id="strictnessVal">0.75</span>
                 </div>
             </div>
-            <p class="style-transfer-note">The source tabla remains the rhythmic reference, but the output is now arranged as a usable drum groove with backbeats, hats, accents, and fills.</p>
+            <p class="style-transfer-note">Controls how much of the original Tabla player's micro-timing is preserved in the groove template. Higher = more human, organic feel.</p>
         </div>
 
         <div class="action-row">
             <button id="processBtn" class="btn-primary" disabled>
-                <span class="btn-icon">Generate</span> Drum Dhun
+                <span class="btn-icon">Extract</span> Groove
             </button>
             <button id="recordBtn" class="btn-outline">
                 <span class="btn-icon">Record</span> Live
@@ -56,7 +56,7 @@
 
         <div id="progressSection" class="progress-section hidden">
             <div class="progress-label">
-                <span>AI groove generation</span>
+                <span>AI groove extraction</span>
                 <span id="progressPct" class="pct-text">0%</span>
             </div>
             <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
@@ -122,10 +122,58 @@
         </div>
     </div>
 
-    <div class="glass-card hidden" id="midi-section">
+    <div class="glass-card hidden groove-highlight-card" id="groove-card">
         <div class="card-header">
             <div class="step-badge">4</div>
-            <h3>Production MIDI Preview</h3>
+            <h3>Ableton &amp; FL Studio Groove Extraction</h3>
+        </div>
+        <div class="groove-export-body">
+            <p class="groove-desc">
+                This MIDI file contains the exact <strong>human micro-timing deviations</strong> of the Tabla player.
+                Drag and drop it into your DAW's Groove Pool to apply authentic Indian 'Laya' to your electronic beats!
+            </p>
+            <a id="grooveDownloadBtn" href="/download-groove" class="btn-primary">Download Groove Template (.mid)</a>
+            <button id="saveProjectBtn" class="btn-outline save-project-btn">Save to My Library</button>
+        </div>
+    </div>
+
+    <div class="glass-card hidden" id="visualizer-card">
+        <div class="card-header">
+            <div class="step-badge">5</div>
+            <h3>Quantize vs Humanize Analysis</h3>
+        </div>
+        <div class="viz-stats-row" id="vizStats">
+            <div class="viz-stat">
+                <span class="viz-stat-label">Avg Deviation</span>
+                <span class="viz-stat-value" id="vizAvgDev">-</span>
+            </div>
+            <div class="viz-stat">
+                <span class="viz-stat-label">Max Deviation</span>
+                <span class="viz-stat-value" id="vizMaxDev">-</span>
+            </div>
+            <div class="viz-stat">
+                <span class="viz-stat-label">Humanize Score</span>
+                <span class="viz-stat-value viz-humanize" id="vizHumanize">-</span>
+            </div>
+            <div class="viz-stat">
+                <span class="viz-stat-label">Total Onsets</span>
+                <span class="viz-stat-value" id="vizOnsets">-</span>
+            </div>
+        </div>
+        <div class="viz-canvas-wrapper">
+            <canvas id="grooveCanvas" width="900" height="260"></canvas>
+        </div>
+        <div class="viz-legend">
+            <span class="viz-legend-item"><span class="viz-dot viz-dot-early"></span> Early (rushed)</span>
+            <span class="viz-legend-item"><span class="viz-dot viz-dot-late"></span> Late (laid back)</span>
+            <span class="viz-legend-item viz-grid-line-legend">— Perfect Grid</span>
+        </div>
+    </div>
+
+    <div class="glass-card hidden" id="midi-section">
+        <div class="card-header">
+            <div class="step-badge">6</div>
+            <h3>AI Drum Arrangement Preview</h3>
             <a id="midiDownloadBtn" href="/download-midi" class="btn-sm">Download MIDI</a>
         </div>
         <div class="player-wrapper">
