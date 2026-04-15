@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TablatoDrum — Project Simulation Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #151d2e;
+            --bg-card-hover: #1a2540;
+            --border: #1e293b;
+            --border-glow: #3b82f680;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f97316;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-pink: #ec4899;
+            --accent-amber: #f59e0b;
+            --gradient-primary: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            --gradient-warm: linear-gradient(135deg, #f97316, #ec4899);
+            --gradient-cool: linear-gradient(135deg, #06b6d4, #3b82f6);
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Background Grid */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 20px 28px 60px;
+        }
+
+        /* ─── Header ─── */
+        .demo-header {
+            text-align: center;
+            padding: 36px 0 28px;
+        }
+        .demo-header .badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            color: var(--accent-blue);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 5px 16px;
+            border-radius: 20px;
+            margin-bottom: 14px;
+        }
+        .demo-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .demo-header p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ─── Pipeline Visualizer ─── */
+        .pipeline-section {
+            margin: 32px 0 28px;
+        }
+        .pipeline-section h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .pipeline-track {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        .pipe-step {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            transition: all 0.5s ease;
+            white-space: nowrap;
+        }
+        .pipe-step .step-icon { font-size: 15px; }
+        .pipe-step.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            box-shadow: 0 0 16px rgba(59, 130, 246, 0.2);
+        }
+        .pipe-step.done {
+            background: rgba(34, 197, 94, 0.12);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .pipe-arrow {
+            color: var(--text-muted);
+            font-size: 16px;
+            transition: color 0.4s;
+        }
+        .pipe-arrow.done { color: var(--accent-green); }
+
+        /* ─── Main Grid ─── */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 28px;
+        }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .panel-header .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .panel-header .tag {
+            margin-left: auto;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .panel-body {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Input Panel */
+        .input-panel .dot { background: var(--accent-orange); }
+        .input-panel .tag { background: rgba(249, 115, 22, 0.15); color: var(--accent-orange); }
+
+        /* Output Panel */
+        .output-panel .dot { background: var(--accent-green); }
+        .output-panel .tag { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+
+        /* Canvas Waveforms */
+        .waveform-wrap {
+            position: relative;
+            width: 100%;
+            height: 120px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+        .waveform-wrap canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .waveform-label {
+            position: absolute;
+            bottom: 6px;
+            left: 10px;
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            background: rgba(10, 14, 23, 0.7);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Taal Selector */
+        .taal-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .taal-btn {
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .taal-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+        .taal-btn.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        /* Bol Sequence Display */
+        .bol-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 14px;
+            min-height: 36px;
+            align-items: center;
+        }
+        .bol-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: all 0.35s ease;
+        }
+        .bol-chip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .bol-chip .conf {
+            font-size: 9px;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        /* Drum grid */
+        .drum-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(16, 1fr);
+            gap: 2px;
+            font-size: 10px;
+            margin-bottom: 14px;
+        }
+        .drum-grid .row-label {
+            display: flex;
+            align-items: center;
+            padding: 0 6px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        .drum-cell {
+            aspect-ratio: 1;
+            border-radius: 3px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            min-height: 22px;
+        }
+        .drum-cell.hit {
+            border-color: transparent;
+        }
+        .drum-cell .hit-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.3s ease;
+        }
+        .drum-cell.hit .hit-dot {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .beat-num {
+            font-size: 9px;
+            color: var(--text-muted);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Metadata & Stats */
+        .meta-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .meta-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            font-size: 11px;
+        }
+        .meta-pill .meta-label { color: var(--text-muted); }
+        .meta-pill .meta-value { color: var(--text-primary); font-weight: 600; }
+
+        /* Controls */
+        .controls-bar {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .ctrl-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.3px;
+        }
+        .ctrl-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 6px 28px rgba(59, 130, 246, 0.45);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+        .btn-warm {
+            background: var(--gradient-warm);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(249, 115, 22, 0.25);
+        }
+        .btn-warm:hover:not(:disabled) {
+            box-shadow: 0 6px 28px rgba(249, 115, 22, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* Progress bar */
+        .progress-track {
+            height: 4px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--gradient-primary);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* Mapping Table */
+        .mapping-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .mapping-section .panel-header { border-bottom: 1px solid var(--border); }
+        .mapping-section .dot { background: var(--accent-purple); }
+        .mapping-section .tag { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .mapping-table th {
+            text-align: left;
+            padding: 10px 16px;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+        }
+        .mapping-table td {
+            padding: 9px 16px;
+            border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+            color: var(--text-secondary);
+        }
+        .mapping-table tr:last-child td { border-bottom: none; }
+        .mapping-table tr { transition: background 0.2s; }
+        .mapping-table tr:hover td { background: rgba(59, 130, 246, 0.04); }
+        .mapping-table tr.highlight td {
+            background: rgba(59, 130, 246, 0.08);
+            color: var(--text-primary);
+        }
+        .bol-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        /* Footer info */
+        .footer-info {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 12px;
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+        }
+        .footer-info span { color: var(--accent-blue); font-weight: 600; }
+
+        /* Animations */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+        }
+        .pipe-step.active { animation: pulseGlow 1.2s ease-in-out infinite; }
+
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Theka display */
+        .theka-display {
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+            line-height: 1.7;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+        .theka-display .sep { color: var(--text-muted); margin: 0 2px; }
+        .theka-display .sam-bol { color: var(--accent-orange); font-weight: 700; }
+        .theka-display .khali-bol { color: var(--accent-cyan); }
+    </style>
+</head>
+<body>
+<div class="page-container">
+
+    <!-- Header -->
+    <div class="demo-header">
+        <div class="badge">🥁 TablatoDrum — Live Simulation</div>
+        <h1>TablatoDrum — Simulation Demo</h1>
+        <p>See how the system takes traditional tabla audio as input, processes it through a CNN-based ML pipeline, and generates DAW-ready drum MIDI as output — in real time.</p>
+    </div>
+
+    <!-- Pipeline Steps -->
+    <div class="pipeline-section">
+        <h2>Processing Pipeline</h2>
+        <div class="pipeline-track" id="pipelineTrack">
+            <div class="pipe-step" data-step="0"><span class="step-icon">🎤</span> Audio Input</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="1"><span class="step-icon">🔍</span> Onset Detection</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="2"><span class="step-icon">📊</span> MFCC + Chroma</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="3"><span class="step-icon">🧠</span> CNN Classify</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="4"><span class="step-icon">🎵</span> Taal Detect</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="5"><span class="step-icon">🔄</span> Rhythm Translate</div>
+            <span class="pipe-arrow">→</span>
+            <div class="pipe-step" data-step="6"><span class="step-icon">🎹</span> MIDI Output</div>
+        </div>
+    </div>
+
+    <!-- Taal Selector -->
+    <div style="text-align:center; margin-bottom: 18px;">
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1.2px;">Select a Taal to Simulate</p>
+        <div class="taal-selector" style="justify-content:center;" id="taalSelector">
+            <button class="taal-btn active" data-taal="Teentaal">Teentaal (16)</button>
+            <button class="taal-btn" data-taal="Keherwa">Keherwa (8)</button>
+            <button class="taal-btn" data-taal="Jhaptaal">Jhaptaal (10)</button>
+            <button class="taal-btn" data-taal="Rupak">Rupak (7)</button>
+            <button class="taal-btn" data-taal="Dadra">Dadra (6)</button>
+            <button class="taal-btn" data-taal="Ektaal">Ektaal (12)</button>
+        </div>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="controls-bar">
+        <button class="ctrl-btn btn-warm" id="btnPlayInput" onclick="playInputTabla()">
+            ▶ Play Tabla Input
+        </button>
+        <button class="ctrl-btn btn-primary" id="btnProcess" onclick="runSimulation()">
+            ⚡ Run ML Pipeline
+        </button>
+        <button class="ctrl-btn btn-secondary" id="btnPlayOutput" onclick="playOutputDrum()" disabled>
+            ▶ Play Drum Output
+        </button>
+        <button class="ctrl-btn btn-secondary" id="btnReset" onclick="resetAll()">
+            ↺ Reset
+        </button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-track" id="progressTrack" style="display:none;">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Main Side-by-Side -->
+    <div class="main-grid">
+
+        <!-- INPUT PANEL -->
+        <div class="panel input-panel">
+            <div class="panel-header">
+                <div class="dot"></div>
+                <h3>Tabla Input</h3>
+                <div class="tag">Source Audio</div>
+            </div>
+            <div class="panel-body">
+                <div class="waveform-wrap">
+                    <canvas id="canvasInput"></canvas>
+                    <div class="waveform-label">Tabla Waveform</div>
+                </div>
+                <div id="inputMeta" class="meta-row">
+                    <div class="meta-pill"><span class="meta-label">Taal:</span><span class="meta-value" id="metaTaal">Teentaal</span></div>
+                    <div class="meta-pill"><span class="meta-label">Beats:</span><span class="meta-value" id="metaBeats">16</span></div>
+                    <div class="meta-pill"><span class="meta-label">BPM:</span><span class="meta-value" id="metaBpm">—</span></div>
+                    <div class="meta-pill"><span class="meta-label">Laya:</span><span class="meta-value" id="metaLaya">—</span></div>
+                </div>
+                <p style="font-size:11px; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">Theka Pattern</p>
+                <div class="theka-display" id="thekaDisplay"></div>
+                <p style="font-size:11px; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">Detected Bol Sequence (CNN Output)</p>
+                <div class="bol-strip" id="bolStrip">
+                    <span style="color:var(--text-muted); font-size:12px;">Run the pipeline to see predictions…</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- OUTPUT PANEL -->
+        <div class="panel output-panel">
+            <div class="panel-header">
+                <div class="dot"></div>
+                <h3>Drum Output</h3>
+                <div class="tag">Generated MIDI</div>
+            </div>
+            <div class="panel-body">
+                <div class="waveform-wrap">
+                    <canvas id="canvasOutput"></canvas>
+                    <div class="waveform-label">Drum Waveform</div>
+                </div>
+                <div id="outputMeta" class="meta-row">
+                    <div class="meta-pill"><span class="meta-label">Meter:</span><span class="meta-value" id="metaMeter">—</span></div>
+                    <div class="meta-pill"><span class="meta-label">Hat Mode:</span><span class="meta-value" id="metaHat">—</span></div>
+                    <div class="meta-pill"><span class="meta-label">Humanize:</span><span class="meta-value" id="metaHumanize">—</span></div>
+                    <div class="meta-pill"><span class="meta-label">Strokes:</span><span class="meta-value" id="metaStrokes">—</span></div>
+                </div>
+                <p style="font-size:11px; color:var(--text-muted); margin-bottom: 8px; text-transform:uppercase; letter-spacing:1px;">Drum Arrangement Grid</p>
+                <div class="drum-grid" id="drumGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mapping Table -->
+    <div class="mapping-section">
+        <div class="panel-header">
+            <div class="dot"></div>
+            <h3>Bol → Drum Role Mapping</h3>
+            <div class="tag">Translation Engine</div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="mapping-table" id="mappingTable">
+                <thead>
+                    <tr>
+                        <th>Tabla Bol</th>
+                        <th>Primary Drum Role</th>
+                        <th>MIDI Note</th>
+                        <th>Confidence</th>
+                        <th>Accent</th>
+                    </tr>
+                </thead>
+                <tbody id="mappingBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer-info">
+        <span>TablatoDrum</span> — Bridging Traditional Rhythms and Digital DAWs with Machine Learning<br>
+        CNN (94,508 params) · 12 Bol Classes · 6 Taals · Dual MIDI Output
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  TAAL DEFINITIONS
+// ═══════════════════════════════════════════════════
+const TAALS = {
+    Teentaal: {
+        beats: 16, vibhaag: [4,4,4,4], bpm: 130,
+        theka: ["Dha","Dhin","Dhin","Dha","Dha","Dhin","Dhin","Dha","Dha","Tin","Tin","Ta","Ta","Dhin","Dhin","Dha"],
+        sam: [0], khali: [8], taali: [0,4,12],
+        meter: "4/4", markers: ["X","2","0","3"]
+    },
+    Keherwa: {
+        beats: 8, vibhaag: [4,4], bpm: 140,
+        theka: ["Dha","Ghe","Na","Ti","Na","Ki","Dhin","Na"],
+        sam: [0], khali: [4], taali: [0],
+        meter: "4/4", markers: ["X","0"]
+    },
+    Jhaptaal: {
+        beats: 10, vibhaag: [2,3,2,3], bpm: 110,
+        theka: ["Dhin","Na","Dhin","Dhin","Na","Tin","Na","Dhin","Dhin","Na"],
+        sam: [0], khali: [5], taali: [0,2,7],
+        meter: "5/4", markers: ["X","2","0","3"]
+    },
+    Rupak: {
+        beats: 7, vibhaag: [3,2,2], bpm: 100,
+        theka: ["Tin","Tin","Na","Dhin","Na","Dhin","Na"],
+        sam: [0], khali: [0], taali: [3,5],
+        meter: "7/8", markers: ["0","X","2"]
+    },
+    Dadra: {
+        beats: 6, vibhaag: [3,3], bpm: 120,
+        theka: ["Dha","Dhin","Na","Dha","Tin","Na"],
+        sam: [0], khali: [3], taali: [0],
+        meter: "3/4", markers: ["X","0"]
+    },
+    Ektaal: {
+        beats: 12, vibhaag: [2,2,2,2,2,2], bpm: 90,
+        theka: ["Dhin","Dhin","Dha","Ghe","Tin","Tin","Na","Kat","Dhin","Na","Dha","Ghe"],
+        sam: [0], khali: [2,6], taali: [0,4,8,10],
+        meter: "3/4", markers: ["X","0","2","0","3","4"]
+    }
+};
+
+const BOL_COLORS = {
+    Dha:  { bg: "rgba(249,115,22,0.18)", border: "#f97316", text: "#fb923c" },
+    Dhin: { bg: "rgba(234,88,12,0.15)",  border: "#ea580c", text: "#f97316" },
+    Ghe:  { bg: "rgba(168,85,247,0.15)", border: "#a855f7", text: "#c084fc" },
+    Na:   { bg: "rgba(59,130,246,0.15)", border: "#3b82f6", text: "#60a5fa" },
+    Ta:   { bg: "rgba(6,182,212,0.15)",  border: "#06b6d4", text: "#22d3ee" },
+    Tun:  { bg: "rgba(236,72,153,0.15)", border: "#ec4899", text: "#f472b6" },
+    Tin:  { bg: "rgba(34,197,94,0.15)",  border: "#22c55e", text: "#4ade80" },
+    Ti:   { bg: "rgba(132,204,22,0.15)", border: "#84cc16", text: "#a3e635" },
+    Re:   { bg: "rgba(245,158,11,0.15)", border: "#f59e0b", text: "#fbbf24" },
+    Ki:   { bg: "rgba(239,68,68,0.15)",  border: "#ef4444", text: "#f87171" },
+    T:    { bg: "rgba(148,163,184,0.12)",border: "#94a3b8", text: "#cbd5e1" },
+    Kat:  { bg: "rgba(239,68,68,0.12)",  border: "#dc2626", text: "#f87171" },
+};
+
+const BOL_DRUM_MAP = {
+    Dha:  { role: "Kick + Accent",   midi: 36, drum: "Kick" },
+    Dhin: { role: "Kick Anchor",     midi: 36, drum: "Kick" },
+    Ghe:  { role: "Low-End Fill",    midi: 41, drum: "Floor Tom" },
+    Na:   { role: "Backbeat Snare",  midi: 38, drum: "Snare" },
+    Ta:   { role: "Backbeat Snare",  midi: 38, drum: "Snare" },
+    Tun:  { role: "Tom Fill",        midi: 48, drum: "Rack Tom" },
+    Tin:  { role: "Ride Accent",     midi: 51, drum: "Ride" },
+    Ti:   { role: "Hi-Hat Pulse",    midi: 42, drum: "Closed Hat" },
+    Re:   { role: "Pedal Hi-Hat",    midi: 44, drum: "Pedal Hat" },
+    Ki:   { role: "Rim Accent",      midi: 37, drum: "Rim" },
+    T:    { role: "Hat Pulse",       midi: 42, drum: "Closed Hat" },
+    Kat:  { role: "Rim/Cross Stick", midi: 37, drum: "Rim" },
+};
+
+const DRUM_ROWS = [
+    { name: "Crash",   midi: 49, color: "#f59e0b" },
+    { name: "Ride",    midi: 51, color: "#22d3ee" },
+    { name: "Hi-Hat",  midi: 42, color: "#4ade80" },
+    { name: "Snare",   midi: 38, color: "#60a5fa" },
+    { name: "Kick",    midi: 36, color: "#f97316" },
+    { name: "Tom",     midi: 48, color: "#c084fc" },
+    { name: "Rim",     midi: 37, color: "#f87171" },
+];
+
+let currentTaal = "Teentaal";
+let isProcessing = false;
+let audioCtx = null;
+
+// Real tabla sample buffers loaded from dataset WAV files
+const sampleBuffers = {};
+const SAMPLE_PATH = "samples/";
+// Map each bol to a WAV file — for bols without their own data folder,
+// fall back to an acoustically similar bol's sample.
+const BOL_SAMPLE_FILE = {
+    Dha: "Dha.wav", Dhin: "Dhin.wav", Ghe: "Ghe.wav",
+    Na: "Na.wav", Ta: "Ta.wav", Tin: "Tin.wav",
+    Ti: "Tin.wav",   // Ti ≈ light Tin
+    Re: "Re.wav", Ki: "Ki.wav", T: "T.wav",
+    Tun: "Ta.wav",   // Tun ≈ open Ta resonance
+    Kat: "Ki.wav",   // Kat ≈ damped Ki
+};
+
+async function loadAllSamples() {
+    const ctx = getAudioCtx();
+    const uniqueFiles = [...new Set(Object.values(BOL_SAMPLE_FILE))];
+    const loaded = {};
+    await Promise.all(uniqueFiles.map(async (file) => {
+        try {
+            const resp = await fetch(SAMPLE_PATH + file);
+            const arrayBuf = await resp.arrayBuffer();
+            loaded[file] = await ctx.decodeAudioData(arrayBuf);
+        } catch (e) {
+            console.warn("Could not load sample:", file, e);
+        }
+    }));
+    // Map every bol name to its decoded AudioBuffer
+    for (const [bol, file] of Object.entries(BOL_SAMPLE_FILE)) {
+        if (loaded[file]) sampleBuffers[bol] = loaded[file];
+    }
+    console.log("[TablatoDrum] Loaded real tabla samples:", Object.keys(sampleBuffers).join(", "));
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+function init() {
+    updateTaalDisplay();
+    buildEmptyDrumGrid();
+    drawIdleWaveform("canvasInput", "#f97316");
+    drawIdleWaveform("canvasOutput", "#22c55e");
+    buildMappingTable();
+
+    document.querySelectorAll(".taal-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (isProcessing) return;
+            document.querySelectorAll(".taal-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentTaal = btn.dataset.taal;
+            updateTaalDisplay();
+            resetAll();
+        });
+    });
+
+    // Pre-load all real tabla samples from the dataset
+    loadAllSamples();
+}
+
+function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+}
+
+// ═══════════════════════════════════════════════════
+//  TAAL DISPLAY
+// ═══════════════════════════════════════════════════
+function updateTaalDisplay() {
+    const t = TAALS[currentTaal];
+    document.getElementById("metaTaal").textContent = currentTaal;
+    document.getElementById("metaBeats").textContent = t.beats;
+
+    // Build theka display with color-coded bols
+    let html = "";
+    let bolIdx = 0;
+    t.vibhaag.forEach((count, vi) => {
+        for (let i = 0; i < count; i++) {
+            const bol = t.theka[bolIdx];
+            const isSam = t.sam.includes(bolIdx);
+            const isKhali = t.khali.includes(bolIdx);
+            const cls = isSam ? 'sam-bol' : (isKhali ? 'khali-bol' : '');
+            html += `<span class="${cls}">${bol}</span> `;
+            bolIdx++;
+        }
+        if (vi < t.vibhaag.length - 1) html += `<span class="sep">|</span> `;
+    });
+    document.getElementById("thekaDisplay").innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════
+//  WAVEFORM DRAWING
+// ═══════════════════════════════════════════════════
+function drawIdleWaveform(canvasId, color) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth, h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = color + "30";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
+}
+
+function drawTablaWaveform(canvasId, theka, color) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth, h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // Background grid lines
+    ctx.strokeStyle = color + "15";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < theka.length; i++) {
+        const x = (i / theka.length) * w;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+
+    // Generate a fake waveform from bol intensities
+    const intensities = {
+        Dha: 1.0, Dhin: 0.85, Ghe: 0.7, Na: 0.8, Ta: 0.75,
+        Tun: 0.65, Tin: 0.5, Ti: 0.4, Re: 0.45, Ki: 0.55, T: 0.3, Kat: 0.6
+    };
+
+    const sampleRate = 200;
+    const totalSamples = theka.length * sampleRate;
+    const samples = new Float32Array(totalSamples);
+
+    theka.forEach((bol, idx) => {
+        const amp = intensities[bol] || 0.5;
+        const startSample = idx * sampleRate;
+        for (let s = 0; s < sampleRate; s++) {
+            const t = s / sampleRate;
+            const decay = Math.exp(-t * 6);
+            const freq = bol.startsWith("D") || bol === "Ghe" ? 3 : 7;
+            const noise = (Math.random() - 0.5) * 0.15;
+            samples[startSample + s] = amp * decay * (Math.sin(t * freq * Math.PI * 12) + noise) * 0.85;
+        }
+    });
+
+    // Draw waveform
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < totalSamples; i++) {
+        const x = (i / totalSamples) * w;
+        const y = (h / 2) + samples[i] * (h / 2) * 0.85;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Fill underneath
+    ctx.lineTo(w, h/2);
+    ctx.lineTo(0, h/2);
+    ctx.closePath();
+    ctx.fillStyle = color + "08";
+    ctx.fill();
+}
+
+function drawDrumWaveform(canvasId, bolSequence) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth, h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    const color = "#22c55e";
+    const sampleRate = 200;
+    const totalSamples = bolSequence.length * sampleRate;
+    const samples = new Float32Array(totalSamples);
+
+    bolSequence.forEach((bol, idx) => {
+        const map = BOL_DRUM_MAP[bol];
+        const isKick = map && (map.midi === 36 || map.midi === 41);
+        const isSnare = map && (map.midi === 38);
+        const amp = isKick ? 1.0 : isSnare ? 0.85 : 0.5;
+        const freq = isKick ? 2.5 : isSnare ? 10 : 14;
+        const decayRate = isKick ? 4 : 8;
+        const start = idx * sampleRate;
+        for (let s = 0; s < sampleRate; s++) {
+            const t = s / sampleRate;
+            const decay = Math.exp(-t * decayRate);
+            const noise = (Math.random()-0.5) * 0.2 * decay;
+            samples[start + s] = amp * decay * Math.sin(t * freq * Math.PI * 8) + noise;
+        }
+    });
+
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < totalSamples; i++) {
+        const x = (i / totalSamples) * w;
+        const y = (h/2) + samples[i] * (h/2) * 0.85;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.lineTo(w, h/2); ctx.lineTo(0, h/2); ctx.closePath();
+    ctx.fillStyle = color + "08";
+    ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════
+//  DRUM GRID
+// ═══════════════════════════════════════════════════
+function buildEmptyDrumGrid() {
+    const t = TAALS[currentTaal];
+    const grid = document.getElementById("drumGrid");
+    const cols = t.beats;
+    grid.style.gridTemplateColumns = `72px repeat(${cols}, 1fr)`;
+
+    let html = '<div class="row-label"></div>';
+    for (let i = 0; i < cols; i++) {
+        html += `<div class="beat-num">${i + 1}</div>`;
+    }
+
+    DRUM_ROWS.forEach(row => {
+        html += `<div class="row-label">${row.name}</div>`;
+        for (let i = 0; i < cols; i++) {
+            html += `<div class="drum-cell" data-drum="${row.midi}" data-step="${i}"><div class="hit-dot" style="background:${row.color}"></div></div>`;
+        }
+    });
+    grid.innerHTML = html;
+}
+
+function populateDrumGrid(theka) {
+    const hitMap = {};
+    theka.forEach((bol, step) => {
+        const map = BOL_DRUM_MAP[bol];
+        if (!map) return;
+        const key = `${map.midi}-${step}`;
+        hitMap[key] = true;
+        // Add hi-hat on every other step
+        if (step % 2 === 0) hitMap[`42-${step}`] = true;
+        // Add crash on beat 1
+        if (step === 0) hitMap[`49-${step}`] = true;
+    });
+
+    document.querySelectorAll(".drum-cell").forEach(cell => {
+        const key = `${cell.dataset.drum}-${cell.dataset.step}`;
+        if (hitMap[key]) cell.classList.add("hit");
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  MAPPING TABLE
+// ═══════════════════════════════════════════════════
+function buildMappingTable() {
+    const body = document.getElementById("mappingBody");
+    body.innerHTML = "";
+    const t = TAALS[currentTaal];
+    const unique = [...new Set(t.theka)];
+    unique.forEach(bol => {
+        const map = BOL_DRUM_MAP[bol];
+        const col = BOL_COLORS[bol] || { bg: "#1e293b", border: "#475569", text: "#94a3b8" };
+        const conf = (0.75 + Math.random() * 0.22).toFixed(3);
+        const accent = (0.5 + Math.random() * 0.45).toFixed(2);
+        body.innerHTML += `
+            <tr data-bol="${bol}">
+                <td><span class="bol-badge" style="background:${col.bg};color:${col.text};border:1px solid ${col.border}">${bol}</span></td>
+                <td>${map ? map.role : "—"}</td>
+                <td>${map ? `${map.drum} (${map.midi})` : "—"}</td>
+                <td>${conf}</td>
+                <td>${accent}</td>
+            </tr>`;
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  PIPELINE ANIMATION
+// ═══════════════════════════════════════════════════
+function setPipelineStep(stepIndex) {
+    document.querySelectorAll(".pipe-step").forEach((el, i) => {
+        el.classList.remove("active", "done");
+        if (i < stepIndex) el.classList.add("done");
+        else if (i === stepIndex) el.classList.add("active");
+    });
+    document.querySelectorAll(".pipe-arrow").forEach((el, i) => {
+        el.classList.toggle("done", i < stepIndex);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  AUDIO — REAL TABLA SAMPLES + SYNTHESIZED DRUMS
+// ═══════════════════════════════════════════════════
+
+// Play a real tabla sample from the decoded WAV buffers.
+// If the sample for a bol hasn't loaded, fall back to synthesis.
+function playRealTablaSample(ctx, time, bol) {
+    const buffer = sampleBuffers[bol];
+    if (buffer) {
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        // Trim to ~0.4s so strokes don't overlap at fast tempi
+        const maxDur = Math.min(buffer.duration, 0.4);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.7, time);
+        gain.gain.linearRampToValueAtTime(0.0, time + maxDur);
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(time, 0, maxDur);
+    } else {
+        // Fallback: basic synthesis if WAV not loaded
+        const bass = ["Dha","Dhin","Ghe"];
+        const freq = bass.includes(bol) ? 80 : 220;
+        const dur = bass.includes(bol) ? 0.2 : 0.1;
+        const gain = ctx.createGain();
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        const osc = ctx.createOscillator();
+        osc.type = bass.includes(bol) ? "sine" : "triangle";
+        osc.frequency.setValueAtTime(freq, time);
+        osc.connect(gain); osc.start(time); osc.stop(time + dur);
+    }
+}
+
+function synthDrumHit(ctx, time, midiNote) {
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+
+    if (midiNote === 36 || midiNote === 41) {
+        // Kick
+        gain.gain.setValueAtTime(0.5, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(30, time + 0.2);
+        osc.connect(gain); osc.start(time); osc.stop(time + 0.3);
+    } else if (midiNote === 38) {
+        // Snare
+        gain.gain.setValueAtTime(0.35, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+        const bufSize = ctx.sampleRate * 0.15;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) d[i] = (Math.random()*2-1);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = "highpass"; filt.frequency.value = 1500;
+        src.connect(filt); filt.connect(gain);
+        src.start(time); src.stop(time + 0.15);
+
+        const osc = ctx.createOscillator();
+        osc.type = "triangle"; osc.frequency.setValueAtTime(180, time);
+        osc.frequency.exponentialRampToValueAtTime(80, time + 0.08);
+        const g2 = ctx.createGain();
+        g2.gain.setValueAtTime(0.25, time);
+        g2.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+        osc.connect(g2); g2.connect(ctx.destination);
+        osc.start(time); osc.stop(time + 0.1);
+    } else if (midiNote === 42 || midiNote === 44) {
+        // Hi-hat
+        gain.gain.setValueAtTime(0.18, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+        const bufSize = ctx.sampleRate * 0.06;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) d[i] = (Math.random()*2-1);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = "bandpass"; filt.frequency.value = 8000; filt.Q.value = 2;
+        src.connect(filt); filt.connect(gain);
+        src.start(time); src.stop(time + 0.07);
+    } else if (midiNote === 49) {
+        // Crash
+        gain.gain.setValueAtTime(0.2, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+        const bufSize = ctx.sampleRate * 0.5;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) d[i] = (Math.random()*2-1);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = "bandpass"; filt.frequency.value = 5000; filt.Q.value = 0.6;
+        src.connect(filt); filt.connect(gain);
+        src.start(time); src.stop(time + 0.5);
+    } else if (midiNote === 48 || midiNote === 50) {
+        // Tom
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(midiNote === 48 ? 160 : 200, time);
+        osc.frequency.exponentialRampToValueAtTime(60, time + 0.18);
+        osc.connect(gain); osc.start(time); osc.stop(time + 0.2);
+    } else if (midiNote === 51) {
+        // Ride
+        gain.gain.setValueAtTime(0.15, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+        const bufSize = ctx.sampleRate * 0.25;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) d[i] = (Math.random()*2-1);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = "bandpass"; filt.frequency.value = 6000; filt.Q.value = 3;
+        src.connect(filt); filt.connect(gain);
+        src.start(time); src.stop(time + 0.25);
+    } else {
+        // Rim / fallback
+        gain.gain.setValueAtTime(0.22, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+        const osc = ctx.createOscillator();
+        osc.type = "square"; osc.frequency.value = 800;
+        osc.connect(gain); osc.start(time); osc.stop(time + 0.05);
+    }
+}
+
+// ═══════════════════════════════════════════════════
+//  PLAY TABLA
+// ═══════════════════════════════════════════════════
+function playInputTabla() {
+    const ctx = getAudioCtx();
+    const t = TAALS[currentTaal];
+    const secPerBeat = 60 / t.bpm;
+    const now = ctx.currentTime + 0.1;
+
+    drawTablaWaveform("canvasInput", t.theka, "#f97316");
+
+    t.theka.forEach((bol, i) => {
+        playRealTablaSample(ctx, now + i * secPerBeat, bol);
+    });
+
+    document.getElementById("metaBpm").textContent = t.bpm;
+    document.getElementById("metaLaya").textContent = t.bpm < 80 ? "Vilambit" : t.bpm < 160 ? "Madhya" : "Drut";
+}
+
+// ═══════════════════════════════════════════════════
+//  PLAY DRUMS
+// ═══════════════════════════════════════════════════
+function playOutputDrum() {
+    const ctx = getAudioCtx();
+    const t = TAALS[currentTaal];
+    const secPerBeat = 60 / t.bpm;
+    const now = ctx.currentTime + 0.1;
+
+    t.theka.forEach((bol, i) => {
+        const map = BOL_DRUM_MAP[bol];
+        if (map) synthDrumHit(ctx, now + i * secPerBeat, map.midi);
+        // Hi-hat on every other step
+        if (i % 2 === 0) synthDrumHit(ctx, now + i * secPerBeat, 42);
+        // Crash on beat 1
+        if (i === 0) synthDrumHit(ctx, now + i * secPerBeat, 49);
+    });
+
+    drawDrumWaveform("canvasOutput", t.theka);
+}
+
+// ═══════════════════════════════════════════════════
+//  SIMULATION
+// ═══════════════════════════════════════════════════
+async function runSimulation() {
+    if (isProcessing) return;
+    isProcessing = true;
+    const t = TAALS[currentTaal];
+
+    document.getElementById("btnProcess").disabled = true;
+    document.getElementById("btnPlayOutput").disabled = true;
+    document.getElementById("progressTrack").style.display = "block";
+
+    const progressFill = document.getElementById("progressFill");
+    const bolStrip = document.getElementById("bolStrip");
+    bolStrip.innerHTML = "";
+
+    const steps = [
+        { idx: 0, label: "Audio loaded ✓", time: 500 },
+        { idx: 1, label: "Detecting onsets...", time: 700 },
+        { idx: 2, label: "Extracting MFCC + Chroma features...", time: 800 },
+        { idx: 3, label: "Running CNN classifier...", time: 1200 },
+        { idx: 4, label: "Identifying taal...", time: 600 },
+        { idx: 5, label: "Translating rhythm...", time: 700 },
+        { idx: 6, label: "Generating MIDI...", time: 500 },
+    ];
+
+    // Step 0: Audio loaded — draw waveform
+    setPipelineStep(0);
+    drawTablaWaveform("canvasInput", t.theka, "#f97316");
+    document.getElementById("metaBpm").textContent = t.bpm;
+    document.getElementById("metaLaya").textContent = t.bpm < 80 ? "Vilambit" : t.bpm < 160 ? "Madhya" : "Drut";
+    progressFill.style.width = "5%";
+    await sleep(steps[0].time);
+
+    // Step 1: Onset detection
+    setPipelineStep(1);
+    progressFill.style.width = "15%";
+    await sleep(steps[1].time);
+
+    // Step 2: Feature extraction
+    setPipelineStep(2);
+    progressFill.style.width = "30%";
+    await sleep(steps[2].time);
+
+    // Step 3: CNN classification — animate bol chips
+    setPipelineStep(3);
+    for (let i = 0; i < t.theka.length; i++) {
+        const bol = t.theka[i];
+        const col = BOL_COLORS[bol] || { bg: "#1e293b", border: "#475569", text: "#94a3b8" };
+        const conf = (0.75 + Math.random() * 0.22).toFixed(1);
+        const chip = document.createElement("span");
+        chip.className = "bol-chip";
+        chip.style.background = col.bg;
+        chip.style.borderColor = col.border;
+        chip.style.color = col.text;
+        chip.innerHTML = `${bol} <span class="conf">${(conf * 100).toFixed(0)}%</span>`;
+        bolStrip.appendChild(chip);
+        await sleep(80);
+        chip.classList.add("show");
+
+        const pct = 30 + ((i + 1) / t.theka.length) * 30;
+        progressFill.style.width = pct + "%";
+
+        // Highlight matching row in mapping table
+        document.querySelectorAll("#mappingTable tr").forEach(r => r.classList.remove("highlight"));
+        const matchRow = document.querySelector(`#mappingTable tr[data-bol="${bol}"]`);
+        if (matchRow) matchRow.classList.add("highlight");
+    }
+    await sleep(200);
+    document.querySelectorAll("#mappingTable tr").forEach(r => r.classList.remove("highlight"));
+
+    // Step 4: Taal detection
+    setPipelineStep(4);
+    progressFill.style.width = "70%";
+    await sleep(steps[4].time);
+
+    // Step 5: Rhythm translation
+    setPipelineStep(5);
+    progressFill.style.width = "82%";
+    document.getElementById("metaMeter").textContent = t.meter;
+    document.getElementById("metaHat").textContent = t.bpm >= 122 ? "16th" : "8th";
+    document.getElementById("metaHumanize").textContent = (30 + Math.random() * 40).toFixed(1) + "%";
+    document.getElementById("metaStrokes").textContent = t.beats;
+    await sleep(steps[5].time);
+
+    // Step 6: MIDI generation — populate drum grid
+    setPipelineStep(6);
+    progressFill.style.width = "92%";
+    buildEmptyDrumGrid();
+    await sleep(300);
+
+    // Animate drum grid cells one by one
+    const cells = document.querySelectorAll(".drum-cell");
+    const hitMap = {};
+    t.theka.forEach((bol, step) => {
+        const map = BOL_DRUM_MAP[bol];
+        if (map) hitMap[`${map.midi}-${step}`] = true;
+        if (step % 2 === 0) hitMap[`42-${step}`] = true;
+        if (step === 0) hitMap[`49-${step}`] = true;
+    });
+
+    for (const cell of cells) {
+        const key = `${cell.dataset.drum}-${cell.dataset.step}`;
+        if (hitMap[key]) {
+            cell.classList.add("hit");
+            await sleep(25);
+        }
+    }
+
+    drawDrumWaveform("canvasOutput", t.theka);
+    progressFill.style.width = "100%";
+
+    await sleep(400);
+
+    // Done
+    setPipelineStep(7);
+    document.getElementById("btnProcess").disabled = false;
+    document.getElementById("btnPlayOutput").disabled = false;
+    isProcessing = false;
+
+    await sleep(600);
+    document.getElementById("progressTrack").style.display = "none";
+    progressFill.style.width = "0%";
+}
+
+function resetAll() {
+    if (isProcessing) return;
+    setPipelineStep(-1);
+    document.querySelectorAll(".pipe-step").forEach(el => el.classList.remove("active", "done"));
+    document.querySelectorAll(".pipe-arrow").forEach(el => el.classList.remove("done"));
+
+    drawIdleWaveform("canvasInput", "#f97316");
+    drawIdleWaveform("canvasOutput", "#22c55e");
+    buildEmptyDrumGrid();
+    buildMappingTable();
+
+    document.getElementById("bolStrip").innerHTML = '<span style="color:var(--text-muted); font-size:12px;">Run the pipeline to see predictions…</span>';
+    document.getElementById("metaBpm").textContent = "—";
+    document.getElementById("metaLaya").textContent = "—";
+    document.getElementById("metaMeter").textContent = "—";
+    document.getElementById("metaHat").textContent = "—";
+    document.getElementById("metaHumanize").textContent = "—";
+    document.getElementById("metaStrokes").textContent = "—";
+    document.getElementById("btnPlayOutput").disabled = true;
+    document.getElementById("progressTrack").style.display = "none";
+    document.getElementById("progressFill").style.width = "0%";
+    updateTaalDisplay();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+window.addEventListener("DOMContentLoaded", init);
+window.addEventListener("resize", () => {
+    drawIdleWaveform("canvasInput", "#f97316");
+    drawIdleWaveform("canvasOutput", "#22c55e");
+});
+</script>
+</body>
+</html>

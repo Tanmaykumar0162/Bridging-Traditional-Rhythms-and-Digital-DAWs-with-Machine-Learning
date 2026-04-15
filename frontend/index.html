@@ -1,68 +1,56 @@
 {% extends "base.html" %}
 {% block content %}
-<section id="hero" class="hero">
-    <div class="hero-badge">8th Semester Major Project</div>
-    <h1 class="hero-title">Bridging <span class="gradient-text">Traditional Rhythms</span> &amp; <span class="gradient-text-2">Digital DAWs</span></h1>
-    <p class="hero-subtitle">with machine learning and groove arrangement</p>
-    <p class="hero-desc">Upload any tabla dhun and generate an AI drum dhun that feels useful inside music production, with source analysis, groove arrangement, and MIDI export.</p>
-    <div class="hero-stats">
-        <div class="stat-pill"><span class="stat-num">12</span> Tabla Classes</div>
-        <div class="stat-pill"><span class="stat-num">94%+</span> Stroke Accuracy</div>
-        <div class="stat-pill"><span class="stat-num">6</span> Taal Patterns</div>
-        <div class="stat-pill"><span class="stat-num">AI</span> Drum Groove</div>
+<section id="hero" class="hero hero-animated">
+    <div class="animated-hero-bg">
+        <div class="floating-note note-1">♪</div>
+        <div class="floating-note note-2">♫</div>
+        <div class="floating-note note-3">♩</div>
+        <div class="floating-note note-4">♬</div>
+        <div class="floating-note note-5">♪</div>
     </div>
-    <a href="/studio" class="hero-cta">Enter the Studio</a>
+    <div class="hero-content">
+        <div class="hero-badge">AI Studio Tool</div>
+        <h1 class="hero-title artistic-heading">Translate Traditional Takes<br>into Production-Ready Drums.</h1>
+        <p class="hero-subtitle">Preserve the human feel. Drop straight into your DAW.</p>
+        <p class="hero-desc">Extract complex Indian rhythms, micro-timing, and dynamics from live recordings and instantly convert them into mapped MIDI drum patterns. An essential toolkit for producers bridging traditional percussion with modern beats.</p>
+        
+        <div class="hero-stats">
+            <div class="stat-pill"><span class="stat-num">Human</span> Micro-Timing</div>
+            <div class="stat-pill"><span class="stat-num">Mapped</span> Drum Rack Notes</div>
+            <div class="stat-pill"><span class="stat-num">Auto</span> Meter Detection</div>
+            <div class="stat-pill"><span class="stat-num">Export</span> Studio MIDI</div>
+        </div>
+        <a href="/studio" class="hero-cta btn-primary" target="_blank" rel="noopener">Launch the AI Studio</a>
+    </div>
 </section>
 
 <section id="about" class="about-section">
-    <h2 class="section-title">How It Works</h2>
-    <div class="pipeline">
-        <div class="pipe-step">
-            <div class="pipe-icon">1</div>
-            <h4>Audio Input</h4>
-            <p>Upload or record any tabla dhun</p>
-        </div>
-        <div class="pipe-arrow">-></div>
-        <div class="pipe-step">
-            <div class="pipe-icon">2</div>
-            <h4>Rhythm Analysis</h4>
-            <p>Onsets, tempo, accents, and phrase density are detected</p>
-        </div>
-        <div class="pipe-arrow">-></div>
-        <div class="pipe-step">
-            <div class="pipe-icon">3</div>
-            <h4>Bol Prediction</h4>
-            <p>MFCC and chroma features drive the tabla classifier</p>
-        </div>
-        <div class="pipe-arrow">-></div>
-        <div class="pipe-step">
-            <div class="pipe-icon">4</div>
-            <h4>Taal Understanding</h4>
-            <p>The app estimates the likely taal and phrase shape</p>
-        </div>
-        <div class="pipe-arrow">-></div>
-        <div class="pipe-step">
-            <div class="pipe-icon">5</div>
-            <h4>Drum Arrangement</h4>
-            <p>The groove engine builds a usable drum dhun and MIDI output</p>
-        </div>
-    </div>
     <div class="glass-card tech-card">
-        <h3>Technology Stack</h3>
-        <div class="tech-grid">
-            <span class="tech-tag">Python</span>
-            <span class="tech-tag">TensorFlow/Keras</span>
-            <span class="tech-tag">Librosa</span>
-            <span class="tech-tag">FastAPI</span>
-            <span class="tech-tag">NumPy</span>
-            <span class="tech-tag">Mido</span>
-            <span class="tech-tag">CNN</span>
-            <span class="tech-tag">MFCC + Chroma</span>
-            <span class="tech-tag">Server-Sent Events</span>
-            <span class="tech-tag">Web Audio API</span>
+        <h3>How It Elevates Your Production</h3>
+        <br/>
+        <div class="projects-grid">
+            <div class="glass-card project-card project-card-left">
+                <h4 class="project-heading">1. Capture the Feel</h4>
+                <p class="project-para">Stop quantizing the life out of your beats. Our algorithm extracts the original performer's deviations so your drum racks sound authentically played, tracking exactly early/late transient shifts.</p>
+            </div>
+            <div class="glass-card project-card project-card-left">
+                <h4 class="project-heading">2. Instant Arrangements</h4>
+                <p class="project-para">The AI listens to complex Dha/Dhin strikes and maps them to kicks, snares, hats, and toms using production-standard GM mapping. Instantly drag-and-drop the generated MIDI file into Ableton or Logic.</p>
+            </div>
+            <div class="glass-card project-card project-card-left">
+                <h4 class="project-heading">3. Smart Grid Adaptation</h4>
+                <p class="project-para">Traditional Taals like Teentaal or Rupak don't always fit neat grids. TablatoDrum understands the meter and forces a sensible 4/4 or 7/8 interpretation without losing the cultural groove.</p>
+            </div>
         </div>
-        <p class="dataset-credit">Dataset: <em>Tabla Solo 1.0</em> - 38 solo compositions from "Shades of Tabla" by Pt. Arvind Mulgaonkar<br>
-        <small>S. Gupta, A. Srinivasamurthy, M. Kumar, H. A. Murthy, X. Serra - ISMIR 2015</small></p>
+        
+        <br/>
+        <div class="tech-grid tech-grid-spaced">
+            <span class="tech-tag">TensorFlow CNN</span>
+            <span class="tech-tag">Librosa Onset Detection</span>
+            <span class="tech-tag">MFCC Feature Extraction</span>
+            <span class="tech-tag">FastAPI WebSocket Engine</span>
+            <span class="tech-tag">Native MIDI Export</span>
+        </div>
     </div>
 </section>
 {% endblock %}

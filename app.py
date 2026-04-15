@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import shutil
 from uuid import uuid4
 
 import librosa
@@ -40,6 +41,7 @@ TARGET_SAMPLES = 72000
 FEATURE_FRAMES = 13
 MODEL_BATCH_SIZE = 128
 CONVERTIBLE_AUDIO_EXTENSIONS = (".mp3", ".mpeg", ".m4a", ".webm", ".ogg")
+AUDIO_CONVERTER = shutil.which("ffmpeg") or shutil.which("avconv")
 print("[*] Loading CNN Model for Web App...")
 model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
@@ -469,8 +471,26 @@ async def stream_transcript(
         buffer.write(await file.read())
 
     if temp_audio_path.lower().endswith(CONVERTIBLE_AUDIO_EXTENSIONS):
+        if not AUDIO_CONVERTER:
+            _safe_remove(temp_audio_path)
+            return JSONResponse(
+                {
+                    "error": "Compressed uploads require FFmpeg on the server. Install FFmpeg or upload a WAV file.",
+                },
+                status_code=503,
+            )
+
         print(f"[*] Converting {safe_name} to WAV format...")
-        audio = AudioSegment.from_file(temp_audio_path)
+        try:
+            audio = AudioSegment.from_file(temp_audio_path)
+        except Exception:
+            _safe_remove(temp_audio_path)
+            return JSONResponse(
+                {
+                    "error": "Audio conversion failed. Try a WAV file or verify that FFmpeg is installed correctly.",
+                },
+                status_code=400,
+            )
         converted_path = temp_audio_path.rsplit(".", 1)[0] + ".wav"
         audio.export(converted_path, format="wav")
         _safe_remove(temp_audio_path)

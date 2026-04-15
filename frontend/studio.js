@@ -13,6 +13,7 @@ const dropZone = document.getElementById("dropZone");
 const targetMeter = document.getElementById("targetMeter");
 const strictnessSlider = document.getElementById("strictnessSlider");
 const strictnessVal = document.getElementById("strictnessVal");
+const editorEmpty = document.getElementById("editorEmpty");
 
 const metaBar = document.getElementById("meta-bar");
 const metaBPM = document.getElementById("metaBPM");
@@ -34,6 +35,15 @@ const drumPlayer = document.getElementById("drumPlayer");
 const downloadBtn = document.getElementById("downloadBtn");
 const saveProjectBtn = document.getElementById("saveProjectBtn");
 
+const transportPlayBtn = document.getElementById("transportPlayBtn");
+const transportPauseBtn = document.getElementById("transportPauseBtn");
+const transportMidiBtn = document.getElementById("transportMidiBtn");
+const transportGrooveBtn = document.getElementById("transportGrooveBtn");
+const transportStatus = document.getElementById("transportStatus");
+const transportBPM = document.getElementById("transportBPM");
+const transportMeter = document.getElementById("transportMeter");
+const transportHumanize = document.getElementById("transportHumanize");
+
 const SOURCE_ROLE_TEXT = {
     Dha: "Bass accent",
     Dhin: "Kick anchor",
@@ -46,14 +56,153 @@ const SOURCE_ROLE_TEXT = {
     Re: "Pedal pulse",
     Ki: "Rim accent",
     T: "Hat pulse",
-    Kat: "Rim accent"
+    Kat: "Rim accent",
 };
 
-// Store session data for save-to-library
 let sessionData = {};
+let mediaRecorder = null;
+let recordedChunks = [];
+let recInterval = null;
+let recSeconds = 0;
+let inputPreviewUrl = "";
+
+function setTransportState(label) {
+    transportStatus.textContent = label;
+}
+
+function setActionLinkEnabled(link, enabled) {
+    if (!link) {
+        return;
+    }
+
+    link.classList.toggle("disabled", !enabled);
+    link.setAttribute("aria-disabled", String(!enabled));
+}
+
+function setPlaybackEnabled(enabled) {
+    transportPlayBtn.disabled = !enabled;
+    transportPauseBtn.disabled = !enabled;
+    setActionLinkEnabled(transportMidiBtn, enabled);
+    setActionLinkEnabled(transportGrooveBtn, enabled);
+    saveProjectBtn.disabled = !enabled;
+}
+
+function resetStudioPanels() {
+    progressSection.classList.add("hidden");
+    metaBar.classList.add("hidden");
+    indianCard.classList.add("hidden");
+    notationCard.classList.add("hidden");
+    grooveCard.classList.add("hidden");
+    visualizerCard.classList.add("hidden");
+    midiSection.classList.add("hidden");
+    bolGrid.innerHTML = "";
+    notesCanvas.innerHTML = "";
+    taalInfo.classList.add("hidden");
+    taalInfo.innerHTML = "";
+    metaBPM.textContent = "-";
+    metaLaya.textContent = "-";
+    metaStrokes.textContent = "-";
+    metaDuration.textContent = "-";
+    metaTaal.textContent = "-";
+    document.getElementById("vizAvgDev").textContent = "-";
+    document.getElementById("vizMaxDev").textContent = "-";
+    document.getElementById("vizHumanize").textContent = "-";
+    document.getElementById("vizOnsets").textContent = "-";
+    saveProjectBtn.textContent = "Save Session";
+    drumPlayer.removeAttribute("src");
+    drumPlayer.src = "";
+}
+
+function updateTransportReadouts({ bpm = "--.-", meter = "--", humanize = "--" } = {}) {
+    transportBPM.textContent = bpm;
+    transportMeter.textContent = meter;
+    transportHumanize.textContent = humanize;
+}
+
+function handleFileSelected(file) {
+    if (inputPreviewUrl) {
+        URL.revokeObjectURL(inputPreviewUrl);
+    }
+
+    inputPreviewUrl = URL.createObjectURL(file);
+    inputAudioPlayer.src = inputPreviewUrl;
+    inputAudioPlayer.classList.remove("hidden");
+    uploadStatus.textContent = "Loaded";
+    uploadStatus.classList.remove("hidden");
+    sessionData = {};
+    resetStudioPanels();
+    editorEmpty.classList.remove("hidden");
+    setPlaybackEnabled(false);
+    updateTransportReadouts();
+    processBtn.disabled = false;
+    setTransportState("Armed");
+}
+
+function tryMidiTransport(action) {
+    if (!drumPlayer || !drumPlayer.src) {
+        return false;
+    }
+
+    try {
+        const methodCandidates =
+            action === "play"
+                ? ["play", "start"]
+                : ["pause", "stop"];
+
+        for (const method of methodCandidates) {
+            if (typeof drumPlayer[method] === "function") {
+                drumPlayer[method]();
+                return true;
+            }
+        }
+
+        const shadowButtons = drumPlayer.shadowRoot?.querySelectorAll("button") || [];
+        if (shadowButtons.length > 0) {
+            if (action === "play") {
+                shadowButtons[0].click();
+                return true;
+            }
+
+            if (shadowButtons.length > 1) {
+                shadowButtons[1].click();
+                return true;
+            }
+
+            shadowButtons[0].click();
+            return true;
+        }
+    } catch (error) {
+        console.warn("Transport action failed", error);
+    }
+
+    return false;
+}
 
 strictnessSlider.addEventListener("input", () => {
     strictnessVal.textContent = Number(strictnessSlider.value).toFixed(2);
+});
+
+setPlaybackEnabled(false);
+strictnessVal.textContent = Number(strictnessSlider.value).toFixed(2);
+
+[transportMidiBtn, transportGrooveBtn].forEach((link) => {
+    link.addEventListener("click", (event) => {
+        if (link.classList.contains("disabled")) {
+            event.preventDefault();
+        }
+    });
+});
+
+transportPlayBtn.addEventListener("click", () => {
+    if (tryMidiTransport("play")) {
+        setTransportState("Playing");
+    }
+});
+
+transportPauseBtn.addEventListener("click", () => {
+    if (tryMidiTransport("pause")) {
+        setTransportState("Paused");
+    }
 });
 
 ["dragenter", "dragover"].forEach((eventName) => {
@@ -84,22 +233,17 @@ audioUpload.addEventListener("change", function () {
     }
 });
 
-function handleFileSelected(file) {
-    inputAudioPlayer.src = URL.createObjectURL(file);
-    inputAudioPlayer.classList.remove("hidden");
-    uploadStatus.classList.remove("hidden");
-    processBtn.disabled = false;
-}
-
-let mediaRecorder = null;
-let recordedChunks = [];
-let recInterval = null;
-let recSeconds = 0;
-
 recordBtn.addEventListener("click", async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        const preferredMimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+            ? "audio/webm;codecs=opus"
+            : MediaRecorder.isTypeSupported("audio/webm")
+                ? "audio/webm"
+                : "";
+        mediaRecorder = preferredMimeType
+            ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+            : new MediaRecorder(stream);
         recordedChunks = [];
         recSeconds = 0;
 
@@ -121,11 +265,13 @@ recordBtn.addEventListener("click", async () => {
             transfer.items.add(file);
             audioUpload.files = transfer.files;
             handleFileSelected(file);
+            setTransportState("Armed");
         };
 
         mediaRecorder.start();
         recordBtn.classList.add("hidden");
         recordingIndicator.classList.remove("hidden");
+        setTransportState("Recording");
         recInterval = setInterval(() => {
             recSeconds += 1;
             const minutes = String(Math.floor(recSeconds / 60)).padStart(2, "0");
@@ -143,6 +289,59 @@ stopRecordBtn.addEventListener("click", () => {
     }
 });
 
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+function audioBufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1; 
+    const bitDepth = 16;
+
+    let result;
+    if (numChannels === 2) {
+        const interleaved = new Float32Array(buffer.length * 2);
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
+        for (let i = 0; i < buffer.length; i++) {
+            interleaved[i * 2] = left[i];
+            interleaved[i * 2 + 1] = right[i];
+        }
+        result = interleaved;
+    } else {
+        result = buffer.getChannelData(0);
+    }
+
+    const dataLength = result.length * (bitDepth / 8);
+    const bufferData = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(bufferData);
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataLength, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+    view.setUint16(32, numChannels * (bitDepth / 8), true);
+    view.setUint16(34, bitDepth, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataLength, true);
+
+    let offset = 44;
+    for (let i = 0; i < result.length; i++, offset += 2) {
+        let s = Math.max(-1, Math.min(1, result[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return bufferData;
+}
+
 processBtn.addEventListener("click", async () => {
     const file = audioUpload.files[0];
     if (!file) {
@@ -151,23 +350,35 @@ processBtn.addEventListener("click", async () => {
     }
 
     processBtn.disabled = true;
+    resetStudioPanels();
+    sessionData = {};
+    editorEmpty.classList.add("hidden");
     progressSection.classList.remove("hidden");
     progressBar.style.width = "0%";
     progressPct.textContent = "0%";
-    metaBar.classList.add("hidden");
-    indianCard.classList.add("hidden");
-    notationCard.classList.add("hidden");
-    grooveCard.classList.add("hidden");
-    visualizerCard.classList.add("hidden");
-    midiSection.classList.add("hidden");
-    bolGrid.innerHTML = "";
-    notesCanvas.innerHTML = "";
-    taalInfo.classList.add("hidden");
-    taalInfo.innerHTML = "";
-    sessionData = {};
+    setPlaybackEnabled(false);
+    updateTransportReadouts();
+    setTransportState("Converting...");
+    
+    let processedFile = file;
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const wavData = audioBufferToWav(audioBuffer);
+        const wavBlob = new Blob([wavData], { type: "audio/wav" });
+        processedFile = new File([wavBlob], "converted_audio.wav", { type: "audio/wav" });
+        if (audioCtx.state !== 'closed') {
+            audioCtx.close();
+        }
+    } catch (e) {
+        console.warn("Failed to convert audio internally, falling back to original file.", e);
+    }
+
+    setTransportState("Analyzing");
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", processedFile);
     formData.append("target_meter", targetMeter.value);
     formData.append("strictness", strictnessSlider.value);
 
@@ -176,12 +387,24 @@ processBtn.addEventListener("click", async () => {
     try {
         const response = await fetch("/stream_transcript", {
             method: "POST",
-            body: formData
+            body: formData,
         });
+
+        if (!response.ok || !response.body) {
+            let errorMessage = `Processing failed with status ${response.status}`;
+            try {
+                const errorPayload = await response.json();
+                if (errorPayload?.error) {
+                    errorMessage = errorPayload.error;
+                }
+            } catch (parseError) {
+                console.warn("Could not parse processing error payload", parseError);
+            }
+            throw new Error(errorMessage);
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
-
         let buffer = "";
 
         while (true) {
@@ -205,11 +428,16 @@ processBtn.addEventListener("click", async () => {
                     if (drumArrangementReady) {
                         notationCard.classList.remove("hidden");
                     }
+
                     grooveCard.classList.remove("hidden");
-                    drumPlayer.src = `/static/AI_Drum_Output.mid?t=${Date.now()}`;
+                    const midiSrc = `/static/AI_Drum_Output.mid?t=${Date.now()}`;
+                    drumPlayer.setAttribute("src", midiSrc);
+                    drumPlayer.src = midiSrc;
                     midiSection.classList.remove("hidden");
                     progressSection.classList.add("hidden");
                     processBtn.disabled = false;
+                    setPlaybackEnabled(true);
+                    setTransportState("Ready");
                     continue;
                 }
 
@@ -224,6 +452,7 @@ processBtn.addEventListener("click", async () => {
                     sessionData.laya = meta.laya;
                     sessionData.total_strokes = meta.total_strokes;
                     sessionData.duration_sec = meta.duration;
+                    updateTransportReadouts({ bpm: meta.bpm, meter: transportMeter.textContent, humanize: transportHumanize.textContent });
                     continue;
                 }
 
@@ -232,9 +461,11 @@ processBtn.addEventListener("click", async () => {
                     metaTaal.textContent = taal.name + (taal.confidence ? ` (${taal.confidence}%)` : "");
                     const description = taal.details && taal.details.description ? taal.details.description : "";
                     const display = taal.details && taal.details.display ? taal.details.display : "";
-                    taalInfo.innerHTML = `<strong>${taal.name}</strong> - ${description}` +
+                    taalInfo.innerHTML =
+                        `<strong>${taal.name}</strong> - ${description}` +
                         (display ? `<br><span class="taal-theka">Theka: ${display}</span>` : "");
                     taalInfo.classList.remove("hidden");
+                    indianCard.classList.remove("hidden");
                     sessionData.detected_taal = taal.name;
                     continue;
                 }
@@ -249,6 +480,7 @@ processBtn.addEventListener("click", async () => {
                         taalInfo.innerHTML += `<br><span class="groove-summary">${grooveText}</span>`;
                     }
                     sessionData.meter = groove.meter;
+                    updateTransportReadouts({ bpm: transportBPM.textContent, meter: groove.meter, humanize: transportHumanize.textContent });
                     continue;
                 }
 
@@ -258,8 +490,13 @@ processBtn.addEventListener("click", async () => {
                     sessionData.avg_deviation_ms = profile.stats.avg_deviation_ms;
                     sessionData.max_deviation_ms = profile.stats.max_deviation_ms;
                     sessionData.humanize_score = profile.stats.humanize_score;
-                    renderGrooveVisualizer(profile);
                     visualizerCard.classList.remove("hidden");
+                    requestAnimationFrame(() => renderGrooveVisualizer(profile));
+                    updateTransportReadouts({
+                        bpm: transportBPM.textContent,
+                        meter: transportMeter.textContent,
+                        humanize: `${profile.stats.humanize_score}%`,
+                    });
                     continue;
                 }
 
@@ -274,6 +511,7 @@ processBtn.addEventListener("click", async () => {
                     const arrangement = JSON.parse(payload.slice(14));
                     renderDrumArrangement(arrangement.steps || []);
                     drumArrangementReady = true;
+                    notationCard.classList.remove("hidden");
                     continue;
                 }
 
@@ -281,6 +519,7 @@ processBtn.addEventListener("click", async () => {
                     const pct = payload.split("|")[1];
                     progressBar.style.width = `${pct}%`;
                     progressPct.textContent = `${pct}%`;
+                    setTransportState(`Processing ${pct}%`);
                 }
             }
         }
@@ -288,7 +527,9 @@ processBtn.addEventListener("click", async () => {
         console.error(error);
         progressSection.classList.add("hidden");
         processBtn.disabled = false;
-        alert("Error processing file. Make sure the backend server is running.");
+        editorEmpty.classList.remove("hidden");
+        setTransportState("Error");
+        alert(error.message || "Error processing file. Make sure the backend server is running.");
     }
 });
 
@@ -358,109 +599,98 @@ function renderGrooveVisualizer(profile) {
 
     const canvas = document.getElementById("grooveCanvas");
     const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        return;
+    }
+
     const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth || canvas.parentElement?.clientWidth || 900;
+    const height = 260;
 
-    canvas.width = canvas.offsetWidth * dpr;
-    canvas.height = 260 * dpr;
-    ctx.scale(dpr, dpr);
-
-    const W = canvas.offsetWidth;
-    const H = 260;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const points = profile.points;
     const padLeft = 50;
     const padRight = 20;
-    const padTop = 30;
+    const padTop = 28;
     const padBottom = 40;
-    const plotW = W - padLeft - padRight;
-    const plotH = H - padTop - padBottom;
-    const centerY = padTop + plotH / 2;
+    const plotWidth = width - padLeft - padRight;
+    const plotHeight = height - padTop - padBottom;
+    const centerY = padTop + plotHeight / 2;
 
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#17191d";
+    ctx.fillRect(0, 0, width, height);
 
-    // Background
-    ctx.fillStyle = "#0d0d14";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.02)";
+    ctx.fillRect(padLeft, padTop, plotWidth, plotHeight);
 
-    // Grid zone
-    ctx.fillStyle = "rgba(108, 61, 255, 0.04)";
-    ctx.fillRect(padLeft, padTop, plotW, plotH);
-
-    // Grid center line (perfect quantized)
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.lineWidth = 1.0;
+    ctx.setLineDash([4, 4]);
     ctx.beginPath();
     ctx.moveTo(padLeft, centerY);
-    ctx.lineTo(W - padRight, centerY);
+    ctx.lineTo(width - padRight, centerY);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Zone labels
-    ctx.fillStyle = "rgba(0, 212, 170, 0.5)";
+    ctx.fillStyle = "rgba(200, 200, 200, 0.6)";
     ctx.font = "11px Inter, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText("Early (rushed)", padLeft - 6, padTop + 16);
-    ctx.fillStyle = "rgba(255, 107, 53, 0.5)";
-    ctx.fillText("Late (laid back)", padLeft - 6, H - padBottom - 6);
+    ctx.fillText("Early", padLeft - 6, padTop + 16);
+    ctx.fillStyle = "rgba(150, 150, 150, 0.6)";
+    ctx.fillText("Late", padLeft - 6, height - padBottom - 6);
 
-    // Center label
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
     ctx.fillText("Grid", padLeft - 6, centerY + 4);
 
-    if (points.length === 0) return;
+    if (points.length === 0) {
+        return;
+    }
 
     const maxDev = Math.max(stats.max_deviation_ms, 10);
-    const scale = (plotH / 2) / maxDev;
+    const scale = (plotHeight / 2) / maxDev;
+    const barWidth = Math.max(2, Math.min(12, plotWidth / points.length - 2));
 
-    // Bars for each onset
-    const barWidth = Math.max(2, Math.min(12, (plotW / points.length) - 2));
-
-    points.forEach((point, i) => {
-        const x = padLeft + (i / Math.max(points.length - 1, 1)) * plotW;
+    points.forEach((point, index) => {
+        const x = padLeft + (index / Math.max(points.length - 1, 1)) * plotWidth;
         const devPx = point.deviation_ms * scale;
         const barTop = point.deviation_ms < 0 ? centerY + devPx : centerY;
         const barHeight = Math.abs(devPx);
 
-        // Green for early (negative = before grid), Orange for late (positive = after grid)
-        if (point.deviation_ms < 0) {
-            ctx.fillStyle = "rgba(0, 212, 170, 0.7)";
-        } else {
-            ctx.fillStyle = "rgba(255, 107, 53, 0.7)";
-        }
-
+        ctx.fillStyle = point.deviation_ms < 0 ? "rgba(180, 180, 180, 0.8)" : "rgba(100, 100, 100, 0.8)";
         ctx.fillRect(x - barWidth / 2, barTop, barWidth, Math.max(barHeight, 1));
 
-        // Bol label at bottom
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.font = "9px Inter, sans-serif";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.44)";
+        ctx.font = '9px "Fira Code", monospace';
         ctx.textAlign = "center";
-        if (points.length <= 60 || i % 2 === 0) {
+        if (points.length <= 60 || index % 2 === 0) {
             ctx.save();
-            ctx.translate(x, H - padBottom + 12);
+            ctx.translate(x, height - padBottom + 12);
             ctx.rotate(-Math.PI / 4);
             ctx.fillText(point.bol, 0, 0);
             ctx.restore();
         }
     });
 
-    // Y-axis ticks
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.font = "10px Inter, monospace";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.34)";
+    ctx.font = '10px "Fira Code", monospace';
     ctx.textAlign = "right";
+
     const tickValues = [-maxDev, -maxDev / 2, 0, maxDev / 2, maxDev];
-    tickValues.forEach((val) => {
-        const y = centerY - val * scale;
-        ctx.fillText(`${Math.round(val)}ms`, padLeft - 6, y + 3);
-        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    tickValues.forEach((value) => {
+        const y = centerY - value * scale;
+        ctx.fillText(`${Math.round(value)}ms`, padLeft - 6, y + 3);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(padLeft, y);
-        ctx.lineTo(W - padRight, y);
+        ctx.lineTo(width - padRight, y);
         ctx.stroke();
     });
 }
 
-// Save to Library button
 saveProjectBtn.addEventListener("click", async () => {
     const payload = {
         name: "Untitled Dhun",
@@ -486,18 +716,18 @@ saveProjectBtn.addEventListener("click", async () => {
         });
         const data = await res.json();
         if (data.status === "saved") {
-            saveProjectBtn.textContent = "✓ Saved!";
+            saveProjectBtn.textContent = "Saved";
             saveProjectBtn.disabled = true;
             setTimeout(() => {
-                saveProjectBtn.textContent = "Save to My Library";
+                saveProjectBtn.textContent = "Save Session";
                 saveProjectBtn.disabled = false;
             }, 3000);
         } else if (data.error === "Not authenticated") {
-            if (confirm("You need to log in first. Go to login page?")) {
-                window.location.href = "/login";
+            if (confirm("You need to log in first. Open the login page in a new window?")) {
+                window.open("/login", "_blank", "noopener,noreferrer,width=1320,height=900");
             }
         }
-    } catch (err) {
+    } catch (error) {
         alert("Failed to save. Is the server running?");
     }
 });

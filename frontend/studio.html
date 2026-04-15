@@ -1,186 +1,267 @@
 {% extends "base.html" %}
 {% block title %}Studio | TablatoDrum{% endblock %}
+{% block body_class %}studio-screen{% endblock %}
 
 {% block content %}
-<section id="workspace" class="workspace studio-workspace">
-    <h2 class="section-title">Tabla to Drum Studio</h2>
-
-    <div class="glass-card" id="input-card">
-        <div class="card-header">
-            <div class="step-badge">1</div>
-            <h3>Upload Tabla Audio</h3>
-            <div id="uploadStatus" class="status-chip hidden">Ready</div>
-        </div>
-        <div class="input-zone" id="dropZone">
-            <div class="drop-icon">Audio</div>
-            <p class="drop-text">Drag and drop any tabla dhun here</p>
-            <p class="drop-sub">or click to browse - supports .wav, .mp3, .m4a, .webm</p>
-            <input type="file" id="audioUpload" accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg,.mp3,.wav,.m4a,.webm,.ogg" class="file-input" aria-label="Upload a tabla audio recording">
-        </div>
-        <audio id="inputAudioPlayer" controls class="audio-player hidden"></audio>
-
-        <div class="style-transfer-box">
-            <h4>Groove Extraction Controls</h4>
-            <div class="style-transfer-controls">
-                <div>
-                    <label for="targetMeter">Target Meter</label>
-                    <select id="targetMeter" aria-label="Target meter">
-                        <option value="auto">Auto from groove (Recommended)</option>
-                        <option value="4/4">4/4 production grid</option>
-                        <option value="3/4">3/4 waltz grid</option>
-                        <option value="5/4">5/4 odd meter</option>
-                        <option value="7/8">7/8 odd meter</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="strictnessSlider">Human Feel Preservation</label>
-                    <input type="range" id="strictnessSlider" aria-label="Human feel" min="0" max="1" step="0.05" value="0.75">
-                    <span id="strictnessVal">0.75</span>
-                </div>
+<section id="workspace" class="daw-shell">
+    <header class="transport-bar daw-panel">
+        <div class="transport-brand">
+            <div class="brand-mark">TD</div>
+            <div class="transport-brand-copy">
+                <span class="panel-kicker">Machine Learning Rhythm Translator</span>
+                <h1 class="transport-title">TablatoDrum Studio</h1>
             </div>
-            <p class="style-transfer-note">Controls how much of the original Tabla player's micro-timing is preserved in the groove template. Higher = more human, organic feel.</p>
         </div>
 
-        <div class="action-row">
-            <button id="processBtn" class="btn-primary" disabled>
-                <span class="btn-icon">Extract</span> Groove
-            </button>
-            <button id="recordBtn" class="btn-outline">
-                <span class="btn-icon">Record</span> Live
-            </button>
+        <div class="transport-controls">
+            <button id="processBtn" class="transport-btn transport-btn-accent" disabled>Render Groove</button>
+            <button id="recordBtn" class="transport-btn">Arm Mic</button>
             <div id="recordingIndicator" class="recording-indicator hidden">
-                <span class="rec-dot"></span> Recording <span id="recTimer">00:00</span>
-                <button id="stopRecordBtn" class="btn-stop">Stop</button>
+                <span class="rec-dot"></span>
+                <span class="rec-state">REC</span>
+                <span id="recTimer" class="mono-readout">00:00</span>
+                <button id="stopRecordBtn" class="transport-btn transport-btn-danger">Stop</button>
             </div>
+            <button id="transportPlayBtn" class="transport-btn" disabled>Play MIDI</button>
+            <button id="transportPauseBtn" class="transport-btn" disabled>Pause / Stop</button>
+            <a id="transportMidiBtn" href="/download-midi" class="transport-btn transport-link disabled" aria-disabled="true">Export MIDI</a>
+            <a id="transportGrooveBtn" href="/download-groove" class="transport-btn transport-link disabled" aria-disabled="true">Export Groove</a>
         </div>
 
-        <div id="progressSection" class="progress-section hidden">
-            <div class="progress-label">
-                <span>AI groove extraction</span>
-                <span id="progressPct" class="pct-text">0%</span>
+        <div class="transport-readouts">
+            <div class="transport-unit">
+                <span class="transport-label">Status</span>
+                <strong id="transportStatus" class="transport-value">Idle</strong>
             </div>
-            <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
-        </div>
-    </div>
-
-    <div class="glass-card meta-bar hidden" id="meta-bar">
-        <div class="meta-item">
-            <span class="meta-label">Tempo</span>
-            <span class="meta-value" id="metaBPM">-</span>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-item">
-            <span class="meta-label">Laya</span>
-            <span class="meta-value" id="metaLaya">-</span>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-item">
-            <span class="meta-label">Strokes</span>
-            <span class="meta-value" id="metaStrokes">-</span>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-item">
-            <span class="meta-label">Duration</span>
-            <span class="meta-value" id="metaDuration">-</span>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-item">
-            <span class="meta-label">Detected Taal</span>
-            <span class="meta-value taal-badge" id="metaTaal">-</span>
-        </div>
-    </div>
-
-    <div class="glass-card hidden" id="indian-card">
-        <div class="card-header">
-            <div class="step-badge">2</div>
-            <h3>Tabla Phrase Analysis</h3>
-        </div>
-        <div id="taalInfo" class="taal-info hidden"></div>
-        <div class="bol-scroll" id="bolScroll">
-            <div class="bol-grid" id="bolGrid"></div>
-        </div>
-        <div class="legend-row">
-            <span class="legend-item"><span class="conf-dot high"></span> at least 90% confidence</span>
-            <span class="legend-item"><span class="conf-dot med"></span> 70-89%</span>
-            <span class="legend-item"><span class="conf-dot low"></span> below 70%</span>
-        </div>
-    </div>
-
-    <div class="glass-card hidden" id="notation-card">
-        <div class="card-header">
-            <div class="step-badge">3</div>
-            <h3>AI Drum Arrangement</h3>
-            <button id="downloadBtn" class="btn-sm">Download PNG</button>
-        </div>
-        <div id="scroll-container" class="notation-scroll">
-            <div id="capture-area" class="capture-area">
-                <div class="staff-lines"></div>
-                <div class="staff-start-bar"></div>
-                <div class="staff-start-bar-2"></div>
-                <div class="notes-container" id="notes-canvas"></div>
+            <div class="transport-unit">
+                <span class="transport-label">BPM</span>
+                <strong id="transportBPM" class="transport-value">--.-</strong>
+            </div>
+            <div class="transport-unit">
+                <span class="transport-label">Meter</span>
+                <strong id="transportMeter" class="transport-value">--</strong>
+            </div>
+            <div class="transport-unit">
+                <span class="transport-label">Humanize</span>
+                <strong id="transportHumanize" class="transport-value">--</strong>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div class="glass-card hidden groove-highlight-card" id="groove-card">
-        <div class="card-header">
-            <div class="step-badge">4</div>
-            <h3>Ableton &amp; FL Studio Groove Extraction</h3>
-        </div>
-        <div class="groove-export-body">
-            <p class="groove-desc">
-                This MIDI file contains the exact <strong>human micro-timing deviations</strong> of the Tabla player.
-                Drag and drop it into your DAW's Groove Pool to apply authentic Indian 'Laya' to your electronic beats!
-            </p>
-            <a id="grooveDownloadBtn" href="/download-groove" class="btn-primary">Download Groove Template (.mid)</a>
-            <button id="saveProjectBtn" class="btn-outline save-project-btn">Save to My Library</button>
-        </div>
-    </div>
+    <aside class="inspector-sidebar">
+        <div class="inspector-scroll">
+            <div class="daw-panel inspector-panel" id="input-card">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Inspector</span>
+                        <h2 class="panel-title">Audio Source</h2>
+                    </div>
+                    <div id="uploadStatus" class="status-chip hidden">Ready</div>
+                </div>
 
-    <div class="glass-card hidden" id="visualizer-card">
-        <div class="card-header">
-            <div class="step-badge">5</div>
-            <h3>Quantize vs Humanize Analysis</h3>
-        </div>
-        <div class="viz-stats-row" id="vizStats">
-            <div class="viz-stat">
-                <span class="viz-stat-label">Avg Deviation</span>
-                <span class="viz-stat-value" id="vizAvgDev">-</span>
-            </div>
-            <div class="viz-stat">
-                <span class="viz-stat-label">Max Deviation</span>
-                <span class="viz-stat-value" id="vizMaxDev">-</span>
-            </div>
-            <div class="viz-stat">
-                <span class="viz-stat-label">Humanize Score</span>
-                <span class="viz-stat-value viz-humanize" id="vizHumanize">-</span>
-            </div>
-            <div class="viz-stat">
-                <span class="viz-stat-label">Total Onsets</span>
-                <span class="viz-stat-value" id="vizOnsets">-</span>
-            </div>
-        </div>
-        <div class="viz-canvas-wrapper">
-            <canvas id="grooveCanvas" width="900" height="260"></canvas>
-        </div>
-        <div class="viz-legend">
-            <span class="viz-legend-item"><span class="viz-dot viz-dot-early"></span> Early (rushed)</span>
-            <span class="viz-legend-item"><span class="viz-dot viz-dot-late"></span> Late (laid back)</span>
-            <span class="viz-legend-item viz-grid-line-legend">— Perfect Grid</span>
-        </div>
-    </div>
+                <div class="input-zone" id="dropZone">
+                    <div class="drop-icon">AUDIO</div>
+                    <p class="drop-text">Drag a tabla take into the inspector</p>
+                    <p class="drop-sub">WAV / MP3 / M4A / WEBM / OGG</p>
+                    <input type="file" id="audioUpload" accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg,.mp3,.wav,.m4a,.webm,.ogg" class="file-input" aria-label="Upload a tabla audio recording">
+                </div>
 
-    <div class="glass-card hidden" id="midi-section">
-        <div class="card-header">
-            <div class="step-badge">6</div>
-            <h3>AI Drum Arrangement Preview</h3>
-            <a id="midiDownloadBtn" href="/download-midi" class="btn-sm">Download MIDI</a>
+                <audio id="inputAudioPlayer" controls class="audio-player hidden"></audio>
+
+                <div class="inspector-controls">
+                    <div class="control-block">
+                        <label for="targetMeter">Target Meter</label>
+                        <select id="targetMeter" aria-label="Target meter">
+                            <option value="auto">Auto from groove</option>
+                            <option value="4/4">4/4 grid</option>
+                            <option value="3/4">3/4 grid</option>
+                            <option value="5/4">5/4 grid</option>
+                            <option value="7/8">7/8 grid</option>
+                        </select>
+                    </div>
+
+                    <div class="control-block">
+                        <label for="strictnessSlider">Feel Preservation</label>
+                        <div class="range-row">
+                            <input type="range" id="strictnessSlider" aria-label="Human feel" min="0" max="1" step="0.05" value="0.75">
+                            <span id="strictnessVal" class="mono-readout">0.75</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="style-transfer-note">Higher preservation keeps more of the original player's micro-timing when the groove is translated to the DAW grid.</p>
+
+                <div id="progressSection" class="progress-section hidden">
+                    <div class="progress-label">
+                        <span>Processing</span>
+                        <span id="progressPct" class="pct-text">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="inspector-launches">
+                    <a href="/" class="aux-link" target="_blank" rel="noopener">Open Home</a>
+                    <a href="/dashboard" class="aux-link" target="_blank" rel="noopener">Open Library</a>
+                </div>
+            </div>
+
+            <div class="daw-panel inspector-panel hidden" id="meta-bar">
+                <div class="panel-header compact-header">
+                    <div>
+                        <span class="panel-kicker">Session Readout</span>
+                        <h2 class="panel-title">Performance Metrics</h2>
+                    </div>
+                </div>
+
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <span class="meta-label">Tempo</span>
+                        <span class="meta-value" id="metaBPM">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Laya</span>
+                        <span class="meta-value" id="metaLaya">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Strokes</span>
+                        <span class="meta-value" id="metaStrokes">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration</span>
+                        <span class="meta-value" id="metaDuration">-</span>
+                    </div>
+                    <div class="meta-item meta-item-span">
+                        <span class="meta-label">Detected Taal</span>
+                        <span class="meta-value taal-badge" id="metaTaal">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="daw-panel inspector-panel hidden" id="indian-card">
+                <div class="panel-header compact-header">
+                    <div>
+                        <span class="panel-kicker">Phrase Monitor</span>
+                        <h2 class="panel-title">Bol Stream & Taal Logic</h2>
+                    </div>
+                </div>
+
+                <div id="taalInfo" class="taal-info hidden"></div>
+
+                <div class="bol-scroll" id="bolScroll">
+                    <div class="bol-grid" id="bolGrid"></div>
+                </div>
+
+                <div class="legend-row">
+                    <span class="legend-item"><span class="conf-dot high"></span> 90-100%</span>
+                    <span class="legend-item"><span class="conf-dot med"></span> 70-89%</span>
+                    <span class="legend-item"><span class="conf-dot low"></span> &lt; 70%</span>
+                </div>
+            </div>
         </div>
-        <div class="player-wrapper">
-            <midi-visualizer type="piano-roll" id="myVisualizer"></midi-visualizer>
-            <midi-player id="drumPlayer" sound-font visualizer="#myVisualizer"></midi-player>
+    </aside>
+
+    <section class="editor-stage">
+        <div class="editor-scroll">
+            <div class="daw-panel editor-empty" id="editorEmpty">
+                <span class="panel-kicker">Arrangement View</span>
+                <h2 class="empty-title">Generate a groove to populate the editor.</h2>
+                <p class="empty-copy">The notation lane, piano roll, groove deviation map, and export tools will appear here once the translator finishes processing your tabla performance.</p>
+            </div>
+
+            <div class="daw-panel arrangement-panel hidden" id="notation-card">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Arrangement</span>
+                        <h2 class="panel-title">Generated Drum Notation</h2>
+                    </div>
+                    <button id="downloadBtn" class="transport-btn">Export PNG</button>
+                </div>
+
+                <div id="scroll-container" class="notation-scroll">
+                    <div id="capture-area" class="capture-area">
+                        <div class="staff-lines"></div>
+                        <div class="staff-start-bar"></div>
+                        <div class="staff-start-bar-2"></div>
+                        <div class="notes-container" id="notes-canvas"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-lower-grid">
+                <div class="daw-panel visualizer-panel hidden" id="visualizer-card">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-kicker">Timing Analysis</span>
+                            <h2 class="panel-title">Quantize vs Humanize</h2>
+                        </div>
+                    </div>
+
+                    <div class="viz-stats-row" id="vizStats">
+                        <div class="viz-stat">
+                            <span class="viz-stat-label">Avg Deviation</span>
+                            <span class="viz-stat-value" id="vizAvgDev">-</span>
+                        </div>
+                        <div class="viz-stat">
+                            <span class="viz-stat-label">Max Deviation</span>
+                            <span class="viz-stat-value" id="vizMaxDev">-</span>
+                        </div>
+                        <div class="viz-stat">
+                            <span class="viz-stat-label">Humanize Score</span>
+                            <span class="viz-stat-value viz-humanize" id="vizHumanize">-</span>
+                        </div>
+                        <div class="viz-stat">
+                            <span class="viz-stat-label">Total Onsets</span>
+                            <span class="viz-stat-value" id="vizOnsets">-</span>
+                        </div>
+                    </div>
+
+                    <div class="viz-canvas-wrapper">
+                        <canvas id="grooveCanvas" width="900" height="260"></canvas>
+                    </div>
+
+                    <div class="viz-legend">
+                        <span class="viz-legend-item"><span class="viz-dot viz-dot-early"></span> Early</span>
+                        <span class="viz-legend-item"><span class="viz-dot viz-dot-late"></span> Late</span>
+                        <span class="viz-legend-item viz-grid-line-legend">Grid Line</span>
+                    </div>
+                </div>
+
+                <div class="daw-panel player-panel hidden" id="midi-section">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-kicker">Playback</span>
+                            <h2 class="panel-title">MIDI Piano Roll</h2>
+                        </div>
+                        <a id="midiDownloadBtn" href="/download-midi" class="transport-btn transport-link">Download MIDI</a>
+                    </div>
+
+                    <div class="player-wrapper">
+                        <midi-visualizer type="piano-roll" id="myVisualizer"></midi-visualizer>
+                        <midi-player id="drumPlayer" sound-font visualizer="#myVisualizer"></midi-player>
+                    </div>
+                </div>
+            </div>
+
+            <div class="daw-panel groove-panel hidden" id="groove-card">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Groove Export</span>
+                        <h2 class="panel-title">DAW Timing Template</h2>
+                    </div>
+                    <button id="saveProjectBtn" class="transport-btn">Save Session</button>
+                </div>
+
+                <div class="groove-export-body">
+                    <p class="groove-desc">
+                        This groove template preserves the tabla player's original micro-timing so you can drag it into Ableton Live, FL Studio, or another DAW and transfer that feel to a new drum pattern.
+                    </p>
+                    <a id="grooveDownloadBtn" href="/download-groove" class="transport-btn transport-btn-accent transport-link">Download Groove Template (.mid)</a>
+                </div>
+            </div>
         </div>
-    </div>
+    </section>
 </section>
 {% endblock %}
 

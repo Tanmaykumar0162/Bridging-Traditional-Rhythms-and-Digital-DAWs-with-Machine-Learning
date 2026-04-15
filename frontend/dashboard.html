@@ -2,8 +2,10 @@
 {% block title %}Dashboard | TablatoDrum{% endblock %}
 
 {% block content %}
-<section id="dashboard" class="workspace dashboard-workspace">
-    <h2 class="section-title">🎛️ Groove Library</h2>
+<section id="dashboard" class="workspace dashboard-workspace hero-animated">
+    <div class="animated-hero-bg dash-bg"></div>
+    <div class="hero-content w-100">
+    <h2 class="section-title">Groove Library</h2>
     <p class="dashboard-subtitle">Your personal collection of extracted Indian grooves</p>
 
     <div class="dashboard-stats-row">
@@ -19,10 +21,10 @@
 
     {% if projects|length == 0 %}
     <div class="glass-card empty-state">
-        <div class="empty-icon">📭</div>
+        <div class="empty-icon">TD</div>
         <h3>No grooves yet</h3>
         <p>Head to the Studio, upload a Tabla dhun, and your groove profiles will appear here automatically.</p>
-        <a href="/studio" class="btn-primary">Open Studio</a>
+        <a href="/studio" class="btn-primary" target="_blank" rel="noopener">Open Studio</a>
     </div>
     {% else %}
     <div class="projects-grid" id="projectsGrid">
@@ -31,8 +33,8 @@
             <div class="project-header">
                 <h3 class="project-name" id="pname-{{ project.id }}">{{ project.name }}</h3>
                 <div class="project-actions">
-                    <button class="btn-icon-sm" onclick="renameProject({{ project.id }})" title="Rename">✏️</button>
-                    <button class="btn-icon-sm btn-danger-sm" onclick="deleteProject({{ project.id }})" title="Delete">🗑️</button>
+                    <button class="btn-icon-sm" onclick="renameProject({{ project.id }})" title="Rename">Edit</button>
+                    <button class="btn-icon-sm btn-danger-sm" onclick="deleteProject({{ project.id }})" title="Delete">Del</button>
                 </div>
             </div>
             <div class="project-meta-grid">
@@ -71,7 +73,9 @@
         </div>
         {% endfor %}
     </div>
+    </div>
     {% endif %}
+    </div>
 </section>
 {% endblock %}
 
